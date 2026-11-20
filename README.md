@@ -38,7 +38,7 @@ Uma anotação comum (colheita, numa roça com uma área só) leva quatro toques
 
 ## O que o app faz
 
-**Primeiro uso.** Três passos: nome e município; cooperativa e dados do certificado (todos opcionais); áreas da roça e culturas, escolhidas numa lista pronta. Também dá para entrar com **dados de exemplo**: um produtor fictício, Zé Carlos, de Canarana-BA, com cerca de três semanas de anotações. Para tirar, use Mais > "Apagar dados de exemplo".
+**Primeiro uso.** Três passos: nome e município; cooperativa e dados do certificado (todos opcionais); áreas da roça e culturas, escolhidas numa lista pronta. Também dá para entrar com **dados de exemplo**: um produtor fictício, Zé Carlos, de Canarana-BA, com cerca de três semanas de anotações. Para tirar, use Mais > "Apagar dados de exemplo". Saem só as anotações de exemplo; o que você mesmo anotou continua, inclusive numa área de exemplo, que passa a ser sua.
 
 **Módulo 1: anotação e controle**
 
@@ -46,8 +46,8 @@ Uma anotação comum (colheita, numa roça com uma área só) leva quatro toques
 - **Anotar:** área, cultura, atividade e os detalhes de cada atividade (origem da semente, insumo e origem, quantidade e unidade, valor, destino da venda). Na revisão a anotação aparece numa frase ("Hoje, no Canteiro 1: colheita de 12 kg de feijão"), com data (Hoje, Ontem ou Outro dia), observação e foto opcional.
 - **Caderno:** histórico por dia, com filtro por área, cultura e atividade. Dá para mudar e apagar.
 - **Resumos:** semana ou mês, com setas para navegar entre períodos. Agrupa por área e cultura na ordem do caderno de campo, com somas por unidade. Tem as caixas "Passei para o caderno", o botão para marcar o período todo e a geração de PDF para compartilhar ou imprimir.
-- **Colheita e venda:** por cultura, quanto colheu, quanto vendeu, quanto recebeu e o saldo. O saldo só aparece quando colheita e venda estão na mesma unidade. As barras são simples, sem biblioteca de gráfico.
-- **Cópia de segurança:** fotos das páginas do caderno de papel, organizadas por data, com legenda, tela cheia e opção de apagar. "Exportar meus dados" gera um arquivo JSON para compartilhar; "Importar" traz esse arquivo de volta. É o backup sem nuvem.
+- **Colheita e venda:** por cultura, quanto colheu, quanto vendeu e quanto recebeu no período. O que sobrou é acumulado: toda colheita menos toda venda anotadas até o fim do período, na mesma unidade. Assim, colher no domingo e vender na segunda não aparece como venda a mais. O aviso de venda maior que colheita também usa o acumulado. As barras são simples, sem biblioteca de gráfico.
+- **Cópia de segurança:** fotos das páginas do caderno de papel, organizadas por data, com legenda, tela cheia e opção de apagar. "Exportar meus dados" gera um arquivo JSON para compartilhar; "Importar" traz esse arquivo de volta. Fotos de anotação que não existem no aparelho ficam de fora, e um arquivo com problema mostra uma mensagem em vez de travar o app. É o backup sem nuvem.
 - **Minha ficha (QR):** QR grande com a prévia do que vai na ficha. Tem "Compartilhar link" e "Imprimir cartão", um PDF com QR, nome, cooperativa e a frase "Aponte a câmera do celular para conhecer quem produziu".
 
 **Módulo 2: visita de pares**
@@ -101,7 +101,7 @@ A lógica que importa (datas, resumos, saldo de colheita e venda, lista da visit
 
 O volume de dados é pequeno: um produtor faz algumas anotações por dia, o que dá poucos milhares de registros por ano. Os resumos são filtros e somas em memória, que rodam instantâneos nesse tamanho. Guardar o estado inteiro como JSON no AsyncStorage deixa a exportação e a importação triviais (o arquivo de cópia é o mesmo formato) e evita migrações de esquema num protótipo. Se o app crescer para vários anos de dados ou para consultas mais pesadas, a troca para `expo-sqlite` fica concentrada em `src/store`.
 
-As fotos não vão para o AsyncStorage. Elas são copiadas para a pasta de documentos do app com `expo-file-system`, e o estado guarda só o endereço.
+As fotos não vão para o AsyncStorage. Elas são copiadas para a pasta de documentos do app com `expo-file-system`, e o estado guarda só o caminho relativo (ex.: `anotacoes/1732.jpg`). O endereço completo é montado na hora de mostrar, porque a pasta do app pode mudar entre atualizações. Dados salvos pela versão anterior, que guardava o endereço completo, são convertidos na abertura (`src/lib/migrate.ts`).
 
 ## Contrato da ficha (QR)
 
