@@ -154,6 +154,22 @@ export function decodeFicha(payload: string): Ficha | null {
   }
 }
 
+/**
+ * Aceita o que vier do QR ou do que a pessoa colar: o link completo da ficha
+ * ("…/ficha/#d=…") ou só o código. Devolve o payload ou null.
+ */
+export function fichaPayloadFrom(entrada: string): string | null {
+  const texto = entrada.trim();
+  if (!texto) return null;
+  const cerquilha = texto.indexOf('#');
+  if (cerquilha >= 0) {
+    for (const parte of texto.slice(cerquilha + 1).split('&')) if (parte.startsWith('d=')) return parte.slice(2);
+    return null;
+  }
+  if (texto.startsWith('d=')) return texto.slice(2);
+  return /^[A-Za-z0-9_-]+$/.test(texto) ? texto : null;
+}
+
 export function webUrl(): string {
   const fromEnv = process.env.EXPO_PUBLIC_WEB_URL;
   return (fromEnv && fromEnv.trim() ? fromEnv.trim() : DEFAULT_WEB_URL).replace(/\/+$/, '');
