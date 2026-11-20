@@ -1,8 +1,10 @@
-// Gera o HTML dos PDFs (resumo, cartão da ficha e resumo para a visita).
+// Gera o HTML dos PDFs (resumo, cartão da ficha, resumo para a visita e
+// folha do roteiro de visita a outro produtor).
 // Funções puras: recebem dados prontos e devolvem uma string.
 
 import type { CheckItem } from './checklist';
 import { formatLongDate, formatShortDate } from './dates';
+import { ETAPAS, OPCOES_PARECER, OPCOES_TIPO, ROTULO_RESPOSTA, type Visita, itensDaEtapa } from './roteiro';
 import type { Summary } from './summary';
 import { totalText } from './summary';
 import type { Profile } from './types';
@@ -31,10 +33,18 @@ const BASE_CSS = `
   .falta { color: #9a3412; font-weight: bold; }
   .totais { margin: 4px 0 0; font-style: italic; }
   footer { margin-top: 28px; font-size: 11px; color: #5a5045; }
+  .texto { white-space: pre-wrap; }
+  .marca { display: inline-block; width: 18px; height: 18px; border: 1px solid #1f1a14; margin-right: 8px; text-align: center; line-height: 18px; font-weight: bold; }
+  .assinaturas { width: 100%; margin-top: 56px; border: 0; }
+  .assinaturas td { border: 0; border-top: 1px solid #1f1a14; padding-top: 4px; text-align: center; font-size: 12px; width: 30%; }
+  .assinaturas td.vao { border-top: 0; width: 5%; }
 `;
 
-function page(title: string, body: string): string {
-  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(title)}</title><style>${BASE_CSS}</style></head><body>${body}<footer>Feito com o Caderno de Bolso. Este resumo ajuda a passar a limpo; o caderno de campo continua sendo o registro oficial.</footer></body></html>`;
+const DEFAULT_FOOTER =
+  'Feito com o Caderno de Bolso. Este resumo ajuda a passar a limpo; o caderno de campo continua sendo o registro oficial.';
+
+function page(title: string, body: string, footer: string = DEFAULT_FOOTER): string {
+  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(title)}</title><style>${BASE_CSS}</style></head><body>${body}<footer>${escapeHtml(footer)}</footer></body></html>`;
 }
 
 export function profileLines(p: Profile | null): string {
@@ -120,4 +130,75 @@ export function recoveryCardHtml(opts: { name: string; qrSvg: string; code: stri
     <p class="muted" style="font-size:10px;word-break:break-all">${escapeHtml(opts.code)}</p>
   </div>`;
   return page('Cartão de recuperação', body);
+}
+
+const VAZIO = '________________';
+
+/** Texto do usuário: escapado, ou a linha em branco para preencher à mão. */
+function ouVazio(texto: string): string {
+  return texto.trim() ? escapeHtml(texto) : VAZIO;
+}
+
+/**
+ * Folha do roteiro de apoio à visita: dados da visita, uma tabela por etapa
+ * (pergunta, resposta, observação), não conformidades, parecer marcado e três
+ * linhas de assinatura. O que ficou sem resposta sai em branco.
+ */
+export function roteiroHtml(visita: Visita, generatedOn: string): string {
+  const tipo = OPCOES_TIPO.find((o) => o.valor === visita.tipo)?.rotulo ?? '';
+  const dados = `<table><tbody>
+    <tr><th>Produtor visitado</th><td>${ouVazio(visita.produtor.nome)}</td><th>Município</th><td>${ouVazio(visita.produtor.municipio)}</td></tr>
+    <tr><th>Data</th><td>${visita.data ? escapeHtml(formatLongDate(visita.data)) : VAZIO}</td><th>Tipo</th><td>${ouVazio(tipo)}</td></tr>
+    <tr><th>Quem visitou</th><td colspan="3">${ouVazio(visita.visitantes)}</td></tr>
+  </tbody></table>`;
+
+  const etapas = ETAPAS.filter((e) => e.id !== 'identificacao' && e.id !== 'fechamento')
+    .map((etapa) => {
+      let extra = '';
+      if (etapa.id === 'sementes') {
+        const culturas = visita.culturasSensiveis.length ? visita.culturasSensiveis.join(', ') : 'nenhuma';
+        extra = `<p>Culturas com comprovação de origem exigida: ${escapeHtml(culturas)}</p>`;
+      }
+      if (etapa.id === 'colheita') {
+        const uso =
+          visita.usoArmazenamento === 'exclusivo'
+            ? 'só para orgânico'
+            : visita.usoArmazenamento === 'compartilhado'
+              ? `compartilhados com convencional. Separação: ${ouVazio(visita.separacao)}`
+              : VAZIO;
+        extra = `<p>Armazém e transporte: ${uso}</p>`;
+      }
+      const linhas = itensDaEtapa(visita, etapa.id)
+        .map((item) => {
+          const r = visita.respostas[item.id];
+          return `<tr><td>${escapeHtml(item.texto)}</td><td>${r?.r ? escapeHtml(ROTULO_RESPOSTA[r.r]) : ''}</td><td class="texto">${escapeHtml(r?.obs ?? '')}</td></tr>`;
+        })
+        .join('');
+      return `<h2>${escapeHtml(etapa.titulo)}</h2>${extra}<table><thead><tr><th style="width:50%">Pergunta</th><th style="width:15%">Resposta</th><th>Observação</th></tr></thead><tbody>${linhas}</tbody></table>`;
+    })
+    .join('');
+
+  const ncs = visita.naoConformidades.length
+    ? `<table><thead><tr><th>O que precisa corrigir</th><th style="width:30%">Prazo</th></tr></thead><tbody>${visita.naoConformidades
+        .map((nc) => `<tr><td class="texto">${escapeHtml(nc.descricao)}</td><td>${nc.prazo ? escapeHtml(formatShortDate(nc.prazo)) : ''}</td></tr>`)
+        .join('')}</tbody></table>`
+    : '<p>Nenhuma anotada.</p>';
+
+  const parecer = OPCOES_PARECER.map(
+    (o) => `<p><span class="marca">${visita.parecer === o.valor ? 'X' : ''}</span>${escapeHtml(o.rotulo)}</p>`,
+  ).join('');
+
+  const body = `<h1>Roteiro de apoio à visita</h1>
+    <p class="muted">Gerado em ${escapeHtml(formatLongDate(generatedOn))}. Folha de apoio para organizar a visita; não substitui o roteiro nem os documentos oficiais do grupo (OPAC).</p>
+    ${dados}${etapas}
+    <h2>Não conformidades</h2>${ncs}
+    <h2>Pontos fortes</h2><p class="texto">${ouVazio(visita.pontosFortes)}</p>
+    <h2>Observações</h2><p class="texto">${ouVazio(visita.observacoes)}</p>
+    <h2>Parecer</h2>${parecer}
+    <table class="assinaturas"><tbody><tr><td>Produtor visitado</td><td class="vao"></td><td>Quem visitou</td><td class="vao"></td><td>Quem visitou</td></tr></tbody></table>`;
+  return page(
+    'Roteiro de apoio à visita',
+    body,
+    'Feito com o Caderno de Bolso. Roteiro de apoio: não substitui o roteiro nem os documentos oficiais do grupo.',
+  );
 }

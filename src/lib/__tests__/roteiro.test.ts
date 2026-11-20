@@ -1,4 +1,5 @@
 import { decodeFicha, encodeFicha, fichaPayloadFrom } from '../ficha';
+import { roteiroHtml } from '../html';
 import {
   ETAPAS,
   ITENS,
@@ -177,5 +178,32 @@ describe('ficha lida pelo QR ou colada', () => {
     expect(fichaPayloadFrom('')).toBeNull();
     expect(fichaPayloadFrom('https://exemplo.com/#outra=1')).toBeNull();
     expect(fichaPayloadFrom('cadernodebolso://ligar?c=1&k=2')).toBeNull();
+  });
+});
+
+describe('folha da visita (PDF)', () => {
+  it('leva respostas, parecer marcado e três linhas de assinatura', () => {
+    const v = visitaCompleta();
+    v.produtor.nome = 'Zé <b>Carlos</b>';
+    v.respostas.doc_caderno = { r: 'parte', obs: 'Faltam 2 semanas & meia' };
+    v.naoConformidades = [{ id: 'n1', descricao: 'Anotar caldas', prazo: '2026-12-20' }];
+    const html = roteiroHtml(v, '2026-11-20');
+    expect(html).toContain('Zé &lt;b&gt;Carlos&lt;/b&gt;');
+    expect(html).not.toContain('<b>Carlos</b>');
+    expect(html).toContain('Em parte');
+    expect(html).toContain('Faltam 2 semanas &amp; meia');
+    expect(html).toContain('20/12/2026');
+    expect(html).toContain('<span class="marca">X</span>Conforme<');
+    expect(html.match(/Quem visitou<\/td>/g)).toHaveLength(2);
+    expect(html).toContain('<td>Produtor visitado</td>');
+    expect(html).toContain('não substitui o roteiro nem os documentos oficiais do grupo');
+    expect(html).not.toContain(ITENS.find((i) => i.id === 'sem_comprovacao')!.texto);
+  });
+
+  it('deixa em branco o que não foi respondido', () => {
+    const html = roteiroHtml(novaVisita(AGORA, 'x'), '2026-11-20');
+    expect(html).toContain('________________');
+    expect(html).toContain('Nenhuma anotada.');
+    expect(html).not.toContain('class="marca">X');
   });
 });
