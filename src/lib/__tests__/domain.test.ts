@@ -13,12 +13,13 @@ import { filterEntries, groupByDay } from '../history';
 let seq = 0;
 function entry(p: Partial<Entry> & Pick<Entry, 'activity' | 'crop' | 'date'>): Entry {
   seq += 1;
-  return { id: `e${seq}`, areaId: 'a1', copied: false, createdAt: `${p.date}T10:00:0${seq % 10}.000Z`, ...p };
+  const createdAt = `${p.date}T10:00:0${seq % 10}.000Z`;
+  return { id: `e${seq}`, areaId: 'a1', copied: false, createdAt, updatedAt: createdAt, ...p };
 }
 
 const areas: Area[] = [
-  { id: 'a1', name: 'Canteiro 1' },
-  { id: 'a2', name: 'Roça de baixo' },
+  { id: 'a1', name: 'Canteiro 1', updatedAt: '2026-11-01T00:00:00.000Z' },
+  { id: 'a2', name: 'Roça de baixo', updatedAt: '2026-11-01T00:00:00.000Z' },
 ];
 
 describe('frase da anotação', () => {
@@ -159,7 +160,7 @@ describe('lista de conferência', () => {
         entry({ activity: 'colheita', crop: 'alface', date: '2026-11-18', quantity: 5, unit: 'unidade', copied: true }),
         entry({ activity: 'venda', crop: 'alface', date: '2026-11-18', quantity: 5, unit: 'unidade' }),
       ],
-      photos: [{ id: 'p', file: 'caderno/x.jpg', date: '2026-11-01' }],
+      photos: [{ id: 'p', file: 'caderno/x.jpg', date: '2026-11-01', updatedAt: '2026-11-01T00:00:00.000Z' }],
       manual: { notas: true, dtcs: true, plano: true, separacao: true, pendencias: true },
     });
     expect(c.items.every((i) => i.done)).toBe(true);
@@ -203,7 +204,7 @@ describe('lista de conferência', () => {
   });
 
   it('usa a cópia mais recente', () => {
-    expect(lastBackupDate([{ id: '1', file: 'caderno/1.jpg', date: '2026-10-01' }], '2026-11-02')).toBe('2026-11-02');
+    expect(lastBackupDate([{ id: '1', file: 'caderno/1.jpg', date: '2026-10-01', updatedAt: '2026-10-01T00:00:00.000Z' }], '2026-11-02')).toBe('2026-11-02');
     expect(lastBackupDate([], undefined)).toBeUndefined();
   });
 });

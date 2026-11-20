@@ -4,6 +4,9 @@ import path from 'node:path';
 
 import { useApp } from '@/store';
 
+// A primeira renderização carrega todas as rotas e pode passar de 5 s em máquina lenta.
+jest.setTimeout(30000);
+
 const APP_DIR = path.resolve(__dirname, '../app');
 
 async function resetStore() {
@@ -46,9 +49,15 @@ describe('telas do app', () => {
     expect(await screen.findByText('Anotado!')).toBeTruthy();
     expect(useApp.getState().entries).toHaveLength(before + 1);
 
+    const created = useApp.getState().entries.at(-1);
+    expect(useApp.getState().pendingChanges.at(-1)).toMatchObject({ entity: 'entry', recordId: created?.id, op: 'upsert' });
+
     await fireEvent.press(screen.getByLabelText('Desfazer'));
     expect(await screen.findByText('Confira e salve')).toBeTruthy();
-    expect(useApp.getState().entries).toHaveLength(before);
+    // Apagar é "soft delete": o registro fica com deletedAt e sai das telas.
+    expect(useApp.getState().entries.filter((e) => !e.deletedAt)).toHaveLength(before);
+    expect(useApp.getState().entries.find((e) => e.id === created?.id)?.deletedAt).toEqual(expect.any(String));
+    expect(useApp.getState().pendingChanges.at(-1)).toMatchObject({ recordId: created?.id, op: 'delete' });
   });
 
   it.each([
@@ -69,7 +78,7 @@ describe('telas do app', () => {
   });
 
   it('caderno vazio explica o que fazer', async () => {
-    await act(() => useApp.getState().completeOnboarding({ name: 'Ana' }, [{ id: 'a', name: 'Horta' }], ['alface']));
+    await act(() => useApp.getState().completeOnboarding({ name: 'Ana' }, [{ id: 'a', name: 'Horta', updatedAt: '2026-11-01T00:00:00.000Z' }], ['alface']));
     await renderRouter(APP_DIR, { initialUrl: '/caderno' });
     expect(await screen.findByText('O caderno está vazio')).toBeTruthy();
     expect(screen.getByLabelText('Fazer a primeira anotação')).toBeTruthy();
@@ -96,16 +105,19 @@ describe('telas do app', () => {
 
   it('editar anotação passada a limpo volta a ficar pendente e o desfazer restaura', async () => {
     await act(() => useApp.getState().loadSample('2026-11-20'));
-    const original = useApp.getState().entries.find((e) => e.id === 'ex-1');
-    expect(original?.copied).toBe(true);
-    await renderRouter(APP_DIR, { initialUrl: '/anotar?id=ex-1' });
+    const original = useApp.getState().entries.find((e) => e.copied && e.date === '2026-10-31');
+    if (!original) throw new Error('dados de exemplo sem anotação passada a limpo');
+    await renderRouter(APP_DIR, { initialUrl: `/anotar?id=${original.id}` });
     expect(await screen.findByText('Mudar anotação')).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('Ontem'));
     await fireEvent.press(screen.getByLabelText('Salvar alteração'));
     expect(await screen.findByText(/voltou para "falta passar para o caderno"/)).toBeTruthy();
-    expect(useApp.getState().entries.find((e) => e.id === 'ex-1')?.copied).toBe(false);
+    expect(useApp.getState().entries.find((e) => e.id === original.id)?.copied).toBe(false);
     await fireEvent.press(screen.getByLabelText('Desfazer'));
-    expect(useApp.getState().entries.find((e) => e.id === 'ex-1')).toEqual(original);
+    expect(useApp.getState().entries.find((e) => e.id === original.id)).toMatchObject({
+      ...original,
+      updatedAt: expect.any(String),
+    });
   });
 
   it('mudar a data da visita pergunta e zera os itens marcados à mão', async () => {
