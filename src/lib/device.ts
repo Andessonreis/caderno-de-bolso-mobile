@@ -4,6 +4,7 @@
 import * as DocumentPicker from 'expo-document-picker';
 import { Directory, File, Paths } from 'expo-file-system';
 import * as Haptics from 'expo-haptics';
+import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -20,6 +21,37 @@ function mediaDir(folder: MediaFolder): Directory {
     folder === 'audios' ? new Directory(Paths.document, 'audios') : new Directory(Paths.document, 'fotos', folder);
   dir.create({ idempotent: true, intermediates: true });
   return dir;
+}
+
+/** Garante a pasta e devolve o arquivo de um caminho relativo (ou null se o caminho for inválido). */
+export function mediaFileFor(relative: string): File | null {
+  const f = mediaFile(relative);
+  if (f) mediaDir(mediaFolderOf(relative));
+  return f;
+}
+
+/** Nome novo e único para um arquivo de mídia. */
+function newMediaName(ext: string): string {
+  return `${Date.now()}_${Math.random().toString(36).slice(2, 6)}.${ext}`;
+}
+
+/** Lado maior das fotos guardadas e enviadas (cabe bem em sinal fraco). */
+export const PHOTO_MAX_SIDE = 1600;
+
+/**
+ * Reduz e converte a imagem para JPEG (lado maior até 1600 px, qualidade 0,7).
+ * Devolve o endereço de um arquivo temporário.
+ */
+export async function compressImage(uri: string, width?: number, height?: number): Promise<string> {
+  const ctx = ImageManipulator.manipulate(uri);
+  if (width && height && Math.max(width, height) > PHOTO_MAX_SIDE) {
+    ctx.resize(width >= height ? { width: PHOTO_MAX_SIDE, height: null } : { width: null, height: PHOTO_MAX_SIDE });
+  } else if (!width || !height) {
+    ctx.resize({ width: PHOTO_MAX_SIDE, height: null });
+  }
+  const image = await ctx.renderAsync();
+  const result = await image.saveAsync({ format: SaveFormat.JPEG, compress: 0.7 });
+  return result.uri;
 }
 
 function mediaFile(relative: string): File | null {
@@ -55,8 +87,14 @@ export async function takePhoto(source: 'camera' | 'galeria', folder: 'anotacoes
     source === 'camera' ? await ImagePicker.launchCameraAsync(options) : await ImagePicker.launchImageLibraryAsync(options);
   if (result.canceled) return null;
   const asset = result.assets[0];
-  const name = `${Date.now()}.${extensionOf(asset.uri, 'jpg')}`;
-  await new File(asset.uri).copy(new File(mediaDir(folder), name));
+  const name = newMediaName('jpg');
+  const compressed = new File(await compressImage(asset.uri, asset.width, asset.height));
+  await compressed.copy(new File(mediaDir(folder), name));
+  try {
+    compressed.delete();
+  } catch {
+    // Arquivo temporário; o sistema limpa depois.
+  }
   return `${folder}/${name}`;
 }
 
@@ -65,7 +103,7 @@ export async function takePhoto(source: 'camera' | 'galeria', folder: 'anotacoes
  * para a pasta de recados do app. Retorna o caminho relativo ("audios/arquivo").
  */
 export async function saveRecording(tempUri: string): Promise<string> {
-  const name = `${Date.now()}.${extensionOf(tempUri, 'm4a')}`;
+  const name = newMediaName(extensionOf(tempUri, 'm4a'));
   const source = new File(tempUri);
   await source.copy(new File(mediaDir('audios'), name));
   try {

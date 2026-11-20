@@ -107,3 +107,17 @@ export function cardHtml(opts: { name: string; cooperative?: string; municipalit
   </div>`;
   return page(`Cartão de ${opts.name}`, body);
 }
+
+/** Cartão de recuperação: QR e código para ligar outro celular ao mesmo caderno. */
+export function recoveryCardHtml(opts: { name: string; qrSvg: string; code: string }): string {
+  const body = `
+  <div style="border:2px solid #9a4a1e;border-radius:14px;padding:22px;max-width:440px;margin:0 auto;text-align:center">
+    <h1 style="font-size:22px">Cartão de recuperação</h1>
+    <p>Caderno de Bolso de <strong>${escapeHtml(opts.name)}</strong></p>
+    <div style="margin:18px auto;width:240px;height:240px">${opts.qrSvg /* SVG gerado por qrSvg(), sem texto do usuário */}</div>
+    <p style="font-size:14px">Se trocar de celular, instale o Caderno de Bolso, toque em <strong>Já tenho um caderno</strong> e aponte a câmera para este código.</p>
+    <p style="font-size:14px"><strong>Guarde em lugar seguro.</strong> Quem tiver este cartão consegue ver e mudar o seu caderno.</p>
+    <p class="muted" style="font-size:10px;word-break:break-all">${escapeHtml(opts.code)}</p>
+  </div>`;
+  return page('Cartão de recuperação', body);
+}

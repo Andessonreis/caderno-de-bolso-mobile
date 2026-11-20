@@ -5,8 +5,14 @@
 
 import type { SyncMeta } from '@/lib/types';
 
-/** Tipos de registro que podem ser sincronizados. */
-export type EntityKind = 'profile' | 'settings' | 'area' | 'entry' | 'photo';
+/**
+ * Tipos de registro sincronizados. São os mesmos nomes usados no servidor
+ * (coluna `tipo`). perfil, culturas e visita são registros únicos por caderno.
+ */
+export type EntityKind = 'perfil' | 'culturas' | 'visita' | 'area' | 'anotacao' | 'pagina';
+
+/** Id fixo dos registros únicos. */
+export const SINGLETON_IDS = { perfil: 'perfil', culturas: 'culturas', visita: 'visita' } as const;
 
 /** Um item da fila de alterações. Só a alteração mais recente de cada registro fica. */
 export interface Change {

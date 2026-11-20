@@ -4,7 +4,7 @@ import { isUuid, uuid } from './ids';
 import { toRelativeMediaPath } from './media';
 
 /** Versão atual dos dados salvos no aparelho. */
-export const STORAGE_VERSION = 3;
+export const STORAGE_VERSION = 4;
 
 export interface MigrationDeps {
   newId: () => string;
@@ -90,13 +90,14 @@ export function initialChanges(state: Record<string, unknown>, deps: MigrationDe
     changes.push({ id: deps.newId(), entity, recordId, op: deleted ? 'delete' : 'upsert', at: deps.now });
   const profile = state.profile;
   if (isObj(profile) && !profile.exemplo) {
-    add('profile', 'profile', false);
-    add('settings', 'settings', false);
+    add('perfil', 'perfil', false);
+    add('culturas', 'culturas', false);
+    add('visita', 'visita', false);
   }
   const lists: [Change['entity'], unknown][] = [
     ['area', state.areas],
-    ['entry', state.entries],
-    ['photo', state.photos],
+    ['anotacao', state.entries],
+    ['pagina', state.photos],
   ];
   for (const [entity, list] of lists) {
     if (!Array.isArray(list)) continue;
@@ -121,6 +122,51 @@ function v2ToV3(state: Record<string, unknown>, deps: MigrationDeps): Record<str
   return { ...normalized, pendingChanges: initialChanges(normalized, deps) };
 }
 
+const OLD_ENTITY: Record<string, Change['entity'][]> = {
+  profile: ['perfil'],
+  settings: ['culturas', 'visita'],
+  area: ['area'],
+  entry: ['anotacao'],
+  photo: ['pagina'],
+  // nomes atuais (fila criada pela própria migração 2 → 3) ficam como estão
+  perfil: ['perfil'],
+  culturas: ['culturas'],
+  visita: ['visita'],
+  anotacao: ['anotacao'],
+  pagina: ['pagina'],
+};
+
+/**
+ * Versão 3 → 4: a fila passa a usar os nomes de tipo do servidor, as listas
+ * únicas (culturas e itens da visita) ganham data de alteração e entra a
+ * configuração da cópia na internet (desligada até o produtor aceitar).
+ */
+function v3ToV4(state: Record<string, unknown>, deps: MigrationDeps): Record<string, unknown> {
+  const queue = Array.isArray(state.pendingChanges) ? state.pendingChanges : [];
+  const pendingChanges: Change[] = [];
+  for (const c of queue) {
+    if (!isObj(c) || typeof c.entity !== 'string' || typeof c.recordId !== 'string') continue;
+    for (const entity of OLD_ENTITY[c.entity] ?? []) {
+      const recordId = entity === 'perfil' || entity === 'culturas' || entity === 'visita' ? entity : c.recordId;
+      pendingChanges.push({
+        id: deps.newId(),
+        entity,
+        recordId,
+        op: c.op === 'delete' ? 'delete' : 'upsert',
+        at: typeof c.at === 'string' ? c.at : deps.now,
+      });
+    }
+  }
+  const latest = new Map(pendingChanges.map((c) => [`${c.entity}:${c.recordId}`, c]));
+  return {
+    ...state,
+    pendingChanges: [...latest.values()],
+    culturasUpdatedAt: deps.now,
+    visitaUpdatedAt: deps.now,
+    sync: { ligado: false, perguntado: false, cursor: 0, enviados: {} },
+  };
+}
+
 /** Atualiza dados salvos por versões anteriores do app. */
 export function migratePersisted(
   persisted: unknown,
@@ -131,5 +177,6 @@ export function migratePersisted(
   let state = persisted;
   if (fromVersion < 2) state = v1ToV2(state);
   if (fromVersion < 3) state = v2ToV3(state, deps);
+  if (fromVersion < 4) state = v3ToV4(state, deps);
   return state;
 }

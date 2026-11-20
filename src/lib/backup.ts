@@ -80,11 +80,11 @@ export function isEntry(v: unknown): v is Entry {
   );
 }
 
-function isArea(v: unknown): v is Area {
+export function isArea(v: unknown): v is Area {
   return isObj(v) && nonEmpty(v.id) && nonEmpty(v.name) && optString(v.updatedAt) && optString(v.deletedAt);
 }
 
-function isNotebookPhoto(v: unknown): v is NotebookPhoto {
+export function isNotebookPhoto(v: unknown): v is NotebookPhoto {
   return (
     isObj(v) &&
     nonEmpty(v.id) &&
@@ -97,7 +97,7 @@ function isNotebookPhoto(v: unknown): v is NotebookPhoto {
   );
 }
 
-function isProfile(v: unknown): v is Profile {
+export function isProfile(v: unknown): v is Profile {
   if (!isObj(v) || !nonEmpty(v.name)) return false;
   return (
     ['municipality', 'cooperative', 'opac', 'certificateId', 'nationalRegistry', 'traceCode'].every((k) => optString(v[k])) &&

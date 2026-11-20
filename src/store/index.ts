@@ -8,6 +8,7 @@ import {
   type EntityKind,
   enqueue,
   findLive,
+  SINGLETON_IDS,
   live,
   patchMany,
   softDelete,
@@ -45,8 +46,25 @@ export interface AppData {
   lastAreaId?: string;
   cropUsage: Record<string, number>;
   fontSize: FontSizeChoice;
-  /** Alterações ainda não enviadas para uma sincronização online. */
+  /** Alterações ainda não enviadas para a cópia na internet. */
   pendingChanges: Change[];
+  /** Data da última alteração da lista de culturas (registro único). */
+  culturasUpdatedAt?: string;
+  /** Data da última alteração dos itens marcados e da data da visita (registro único). */
+  visitaUpdatedAt?: string;
+  /** Cópia na internet. A conta e a chave ficam no armazenamento seguro, não aqui. */
+  sync: SyncConfig;
+}
+
+export interface SyncConfig {
+  /** O produtor aceitou guardar uma cópia na internet. */
+  ligado: boolean;
+  /** Já perguntamos uma vez (não insistir a cada abertura). */
+  perguntado: boolean;
+  /** Último `seq` recebido do servidor. */
+  cursor: number;
+  /** Arquivos de mídia já enviados (caminho relativo). */
+  enviados: Record<string, true>;
 }
 
 interface AppActions {
@@ -77,6 +95,12 @@ interface AppActions {
   markExported: (date: ISODate) => void;
   /** Troca os dados pelos do arquivo. `keepPhotos`: mantém as fotos do caderno atuais (arquivo antigo, sem fotos). */
   importData: (data: BackupData, keepPhotos?: boolean) => void;
+  /** Liga ou desliga a cópia na internet. */
+  setSyncEnabled: (ligado: boolean) => void;
+  /** Registra que a pergunta sobre a cópia na internet já foi feita. */
+  setSyncAsked: () => void;
+  /** Esquece o que foi enviado e põe tudo do produtor de novo na fila (cópia apagada ou caderno trocado). */
+  resetSyncProgress: () => void;
   resetAll: () => void;
 }
 
@@ -96,6 +120,7 @@ const initialData: AppData = {
   cropUsage: {},
   fontSize: 'normal',
   pendingChanges: [],
+  sync: { ligado: false, perguntado: false, cursor: 0, enviados: {} },
 };
 
 /**
@@ -112,8 +137,9 @@ function track(
   return enqueue(queue, { entity, recordId: record.id, op, at: nowISO() }, newId);
 }
 
-const SETTINGS = { id: 'settings' };
-const PROFILE = { id: 'profile' };
+const PERFIL = { id: SINGLETON_IDS.perfil };
+const CULTURAS = { id: SINGLETON_IDS.culturas };
+const VISITA = { id: SINGLETON_IDS.visita };
 
 export const useApp = create<AppState>()(
   persist(
@@ -125,8 +151,9 @@ export const useApp = create<AppState>()(
         // Junta com o que já existir (ex.: áreas criadas enquanto o exemplo estava carregado).
         set((st) => {
           const now = nowISO();
-          let queue = track(st.pendingChanges, 'profile', PROFILE);
-          queue = track(queue, 'settings', SETTINGS);
+          let queue = track(st.pendingChanges, 'perfil', PERFIL);
+          queue = track(queue, 'culturas', CULTURAS);
+          queue = track(queue, 'visita', VISITA);
           let list = st.areas;
           for (const a of areas) {
             list = upsert(list, a, now);
@@ -136,6 +163,8 @@ export const useApp = create<AppState>()(
             profile: { ...profile, updatedAt: now },
             areas: list,
             crops: [...new Set([...st.crops, ...crops])],
+            culturasUpdatedAt: now,
+            visitaUpdatedAt: now,
             pendingChanges: queue,
           };
         }),
@@ -164,7 +193,7 @@ export const useApp = create<AppState>()(
       updateProfile: (profile) =>
         set((st) => {
           const next = { ...profile, updatedAt: nowISO() };
-          return { profile: next, pendingChanges: track(st.pendingChanges, 'profile', { ...PROFILE, exemplo: next.exemplo }) };
+          return { profile: next, pendingChanges: track(st.pendingChanges, 'perfil', { ...PERFIL, exemplo: next.exemplo }) };
         }),
 
       addArea: (name) =>
@@ -191,20 +220,24 @@ export const useApp = create<AppState>()(
         })),
 
       setCrops: (crops) =>
-        set((st) => ({ crops, pendingChanges: track(st.pendingChanges, 'settings', SETTINGS) })),
+        set((st) => ({
+          crops,
+          culturasUpdatedAt: nowISO(),
+          pendingChanges: track(st.pendingChanges, 'culturas', { ...CULTURAS, exemplo: st.profile?.exemplo }),
+        })),
 
       addEntry: (entry) =>
         set((st) => ({
           entries: upsert(st.entries, entry, nowISO()),
           lastAreaId: entry.areaId,
           cropUsage: bumpUsage(st.cropUsage, entry.crop),
-          pendingChanges: track(st.pendingChanges, 'entry', entry),
+          pendingChanges: track(st.pendingChanges, 'anotacao', entry),
         })),
 
       updateEntry: (entry) =>
         set((st) => ({
           entries: upsert(st.entries, entry, nowISO()),
-          pendingChanges: track(st.pendingChanges, 'entry', entry),
+          pendingChanges: track(st.pendingChanges, 'anotacao', entry),
         })),
 
       deleteEntry: (id) => {
@@ -212,7 +245,7 @@ export const useApp = create<AppState>()(
         if (!found) return undefined;
         set((st) => ({
           entries: softDelete(st.entries, id, nowISO()),
-          pendingChanges: track(st.pendingChanges, 'entry', found, 'delete'),
+          pendingChanges: track(st.pendingChanges, 'anotacao', found, 'delete'),
         }));
         return found;
       },
@@ -220,14 +253,14 @@ export const useApp = create<AppState>()(
       restoreEntry: (id) =>
         set((st) => ({
           entries: undelete(st.entries, id, nowISO()),
-          pendingChanges: track(st.pendingChanges, 'entry', st.entries.find((e) => e.id === id) ?? null),
+          pendingChanges: track(st.pendingChanges, 'anotacao', st.entries.find((e) => e.id === id) ?? null),
         })),
 
       setCopied: (ids, copied) =>
         set((st) => {
           const wanted = new Set(ids);
           let queue = st.pendingChanges;
-          for (const e of st.entries) if (wanted.has(e.id)) queue = track(queue, 'entry', e);
+          for (const e of st.entries) if (wanted.has(e.id)) queue = track(queue, 'anotacao', e);
           return { entries: patchMany(st.entries, wanted, { copied }, nowISO()), pendingChanges: queue };
         }),
 
@@ -236,7 +269,7 @@ export const useApp = create<AppState>()(
           const now = nowISO();
           return {
             photos: [{ ...photo, updatedAt: now }, ...st.photos],
-            pendingChanges: track(st.pendingChanges, 'photo', photo),
+            pendingChanges: track(st.pendingChanges, 'pagina', photo),
           };
         }),
 
@@ -246,27 +279,36 @@ export const useApp = create<AppState>()(
           if (!photo) return st;
           return {
             photos: upsert(st.photos, { ...photo, caption: caption.trim() || undefined }, nowISO()),
-            pendingChanges: track(st.pendingChanges, 'photo', photo),
+            pendingChanges: track(st.pendingChanges, 'pagina', photo),
           };
         }),
 
       removePhoto: (id) =>
         set((st) => ({
           photos: softDelete(st.photos, id, nowISO()),
-          pendingChanges: track(st.pendingChanges, 'photo', { id }, 'delete'),
+          pendingChanges: track(st.pendingChanges, 'pagina', { id }, 'delete'),
         })),
 
       setManualCheck: (id, value) =>
         set((st) => ({
           manualChecks: { ...st.manualChecks, [id]: value },
-          pendingChanges: track(st.pendingChanges, 'settings', SETTINGS),
+          visitaUpdatedAt: nowISO(),
+          pendingChanges: track(st.pendingChanges, 'visita', { ...VISITA, exemplo: st.profile?.exemplo }),
         })),
 
       setLastVisitDate: (date) =>
-        set((st) => ({ lastVisitDate: date, pendingChanges: track(st.pendingChanges, 'settings', SETTINGS) })),
+        set((st) => ({
+          lastVisitDate: date,
+          visitaUpdatedAt: nowISO(),
+          pendingChanges: track(st.pendingChanges, 'visita', { ...VISITA, exemplo: st.profile?.exemplo }),
+        })),
 
       resetManualChecks: () =>
-        set((st) => ({ manualChecks: {}, pendingChanges: track(st.pendingChanges, 'settings', SETTINGS) })),
+        set((st) => ({
+          manualChecks: {},
+          visitaUpdatedAt: nowISO(),
+          pendingChanges: track(st.pendingChanges, 'visita', { ...VISITA, exemplo: st.profile?.exemplo }),
+        })),
 
       setFontSize: (fontSize) => set({ fontSize }),
 
@@ -284,8 +326,26 @@ export const useApp = create<AppState>()(
           manualChecks: data.manualChecks,
           lastVisitDate: data.lastVisitDate,
         };
-        set({ ...imported, lastAreaId: undefined, pendingChanges: initialChanges(imported, deps) });
+        set((st) => ({
+          ...imported,
+          lastAreaId: undefined,
+          culturasUpdatedAt: now,
+          visitaUpdatedAt: now,
+          pendingChanges: initialChanges(imported, deps),
+          // Os arquivos importados ainda não estão na cópia na internet.
+          sync: { ...st.sync, enviados: {} },
+        }));
       },
+
+      setSyncEnabled: (ligado) => set((st) => ({ sync: { ...st.sync, ligado, perguntado: true } })),
+
+      setSyncAsked: () => set((st) => ({ sync: { ...st.sync, perguntado: true } })),
+
+      resetSyncProgress: () =>
+        set((st) => ({
+          sync: { ...st.sync, cursor: 0, enviados: {} },
+          pendingChanges: initialChanges(st as unknown as Record<string, unknown>, { newId, now: nowISO() }),
+        })),
 
       resetAll: () => set({ ...initialData }),
     }),
@@ -307,6 +367,9 @@ export const useApp = create<AppState>()(
         cropUsage: st.cropUsage,
         fontSize: st.fontSize,
         pendingChanges: st.pendingChanges,
+        culturasUpdatedAt: st.culturasUpdatedAt,
+        visitaUpdatedAt: st.visitaUpdatedAt,
+        sync: st.sync,
       }),
       onRehydrateStorage: () => () => {
         useApp.setState({ hydrated: true });
