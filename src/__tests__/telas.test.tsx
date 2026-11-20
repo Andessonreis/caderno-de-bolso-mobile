@@ -2,6 +2,8 @@ import { act, fireEvent, screen } from '@testing-library/react-native';
 import { renderRouter } from 'expo-router/testing-library';
 import path from 'node:path';
 
+import { encodeFicha } from '@/lib/ficha';
+import { novaVisita } from '@/lib/roteiro';
 import { useApp } from '@/store';
 
 // A primeira renderização carrega todas as rotas e pode passar de 5 s em máquina lenta.
@@ -160,5 +162,94 @@ describe('telas do app', () => {
     await renderRouter(APP_DIR, { initialUrl: `/ligar?c=3f1b2c4d-5e6f-4a1b-8c2d-3e4f5a6b7c8d&k=${chave}` });
     expect(await screen.findByText('Ligar este celular?')).toBeTruthy();
     expect(screen.getByLabelText('Sim, ligar este celular')).toBeTruthy();
+  });
+
+  it('aba Visita mostra os dois lados e começa uma visita a outra roça', async () => {
+    await act(() => useApp.getState().loadSample('2026-11-20'));
+    await renderRouter(APP_DIR, { initialUrl: '/visita' });
+    expect(await screen.findByLabelText('Minha roça. Me preparar para receber a visita')).toBeTruthy();
+    expect(screen.getByText('Pronto para a visita')).toBeTruthy();
+
+    await fireEvent.press(screen.getByLabelText('Visitar outra roça. Para quando você vai visitar outro produtor'));
+    expect(await screen.findByText('Nenhuma visita ainda')).toBeTruthy();
+    expect(screen.getByText(/visitar a roça de outro produtor/)).toBeTruthy();
+    expect(screen.getByText(/Não substitui o roteiro nem os documentos oficiais/)).toBeTruthy();
+
+    await fireEvent.press(screen.getByLabelText('Começar uma visita'));
+    expect(await screen.findByText('Quem e quando')).toBeTruthy();
+    expect(useApp.getState().peerVisits).toHaveLength(1);
+    const id = useApp.getState().peerVisits[0].id;
+    expect(useApp.getState().pendingChanges.at(-1)).toMatchObject({ entity: 'visita_par', recordId: id });
+
+    await fireEvent.changeText(screen.getByLabelText('Nome do produtor visitado'), 'Maria da Silva');
+    expect(useApp.getState().peerVisits[0].produtor.nome).toBe('Maria da Silva');
+    expect(await screen.findByText('Salvo neste celular')).toBeTruthy();
+    expect(screen.getByText('Visita a Maria da Silva')).toBeTruthy();
+
+    await fireEvent.press(screen.getByLabelText('Próxima etapa'));
+    expect(await screen.findByText('Documentos')).toBeTruthy();
+    await fireEvent.press(screen.getAllByLabelText('Em parte')[0]);
+    expect(useApp.getState().peerVisits[0].respostas.doc_caderno).toEqual({ obs: '', r: 'parte' });
+
+    await fireEvent.press(screen.getByLabelText('Resumo da visita'));
+    expect(await screen.findByText(/Faltam \d+ respostas/)).toBeTruthy();
+    expect(screen.getByLabelText('Gerar PDF da visita')).toBeTruthy();
+    await fireEvent.press(screen.getAllByLabelText('Responder agora')[0]);
+    expect(await screen.findByText('Quem e quando')).toBeTruthy();
+  });
+
+  it('pergunta da separação só aparece com armazém compartilhado', async () => {
+    const v = novaVisita(new Date('2026-11-20T10:00:00'));
+    await act(() => {
+      useApp.getState().loadSample('2026-11-20');
+      useApp.getState().savePeerVisit(v);
+    });
+    await renderRouter(APP_DIR, { initialUrl: `/visita-par/${v.id}` });
+    await fireEvent.press(await screen.findByLabelText('Etapa 5: Colheita, armazenamento e transporte'));
+    expect(await screen.findByText('A colheita está anotada no caderno?')).toBeTruthy();
+    expect(screen.queryByText('A separação do produto orgânico está sendo feita e anotada?')).toBeNull();
+    await fireEvent.press(screen.getByLabelText('Compartilhados com convencional'));
+    expect(await screen.findByText('A separação do produto orgânico está sendo feita e anotada?')).toBeTruthy();
+    expect(screen.getByLabelText('Como a separação é feita e registrada?')).toBeTruthy();
+  });
+
+  it('link da ficha colado preenche o produtor e marca as culturas sensíveis', async () => {
+    const v = novaVisita(new Date('2026-11-20T10:00:00'));
+    await act(() => {
+      useApp.getState().loadSample('2026-11-20');
+      useApp.getState().savePeerVisit(v);
+    });
+    await renderRouter(APP_DIR, { initialUrl: `/visita-par/${v.id}` });
+    const ficha = encodeFicha({ v: 1, n: 'João Pereira', m: 'Lapão', cu: ['Feijão de corda'] });
+    const link = `https://exemplo.github.io/ficha/#d=${ficha}`;
+    await fireEvent.changeText(await screen.findByLabelText('Ou cole o link da ficha'), 'link-cortado!');
+    await fireEvent.press(screen.getByLabelText('Usar dados da ficha'));
+    expect(await screen.findByText(/Não conseguimos ler esta ficha/)).toBeTruthy();
+    await fireEvent.changeText(screen.getByLabelText('Ou cole o link da ficha'), link);
+    await fireEvent.press(screen.getByLabelText('Usar dados da ficha'));
+    expect(await screen.findByText('Dados de João Pereira preenchidos.')).toBeTruthy();
+    expect(useApp.getState().peerVisits[0]).toMatchObject({
+      produtor: { nome: 'João Pereira', municipio: 'Lapão', culturas: ['Feijão de corda'] },
+      culturasSensiveis: ['feijão'],
+    });
+  });
+
+  it('apagar uma visita pede confirmação e dá para desfazer', async () => {
+    const v = novaVisita(new Date('2026-11-20T10:00:00'));
+    v.produtor.nome = 'Rosa';
+    await act(() => {
+      useApp.getState().loadSample('2026-11-20');
+      useApp.getState().savePeerVisit(v);
+    });
+    await renderRouter(APP_DIR, { initialUrl: '/visita?modo=outra' });
+    expect(await screen.findByText('Rosa')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Apagar'));
+    expect(await screen.findByText('Apagar esta visita?')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Sim, apagar'));
+    expect(useApp.getState().peerVisits[0].deletedAt).toEqual(expect.any(String));
+    expect(await screen.findByText('Nenhuma visita ainda')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Desfazer'));
+    expect(useApp.getState().peerVisits[0].deletedAt).toBeUndefined();
+    expect(await screen.findByText('Rosa')).toBeTruthy();
   });
 });

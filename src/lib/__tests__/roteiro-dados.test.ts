@@ -8,6 +8,7 @@ import { ITENS, LIMITES_VISITA, novaVisita, type Visita } from '../roteiro';
 const T0 = '2026-11-01T10:00:00.000Z';
 const T1 = '2026-11-02T10:00:00.000Z';
 const ID = '3f1b2c4d-5e6f-4a1b-8c2d-3e4f5a6b7c8d';
+const MUDANCA = { id: 'c1', entity: 'visita_par' as const, recordId: ID, op: 'upsert' as const, at: T0 };
 
 function visita(p: Partial<Visita> = {}): Visita {
   const v = novaVisita(new Date('2026-11-20T10:00:00'), ID);
@@ -15,7 +16,8 @@ function visita(p: Partial<Visita> = {}): Visita {
 }
 
 function estado(p: Partial<SyncedState> = {}): SyncedState {
-  return { profile: null, areas: [], crops: [], entries: [], photos: [], peerVisits: [], manualChecks: {}, pendingChanges: [], ...p };
+  const vazio = { profile: null, areas: [], crops: [], entries: [], photos: [], peerVisits: [], manualChecks: {} };
+  return { ...vazio, pendingChanges: [], ...p };
 }
 
 /** Visita com todos os textos no limite, com acentos e quebras de linha. */
@@ -101,7 +103,7 @@ describe('cópia de segurança com visitas', () => {
 describe('visitas na cópia na internet', () => {
   it('vira registro do tipo visita_par sem os campos de controle', () => {
     const v = visita();
-    const out = toOutgoing({ id: 'c1', entity: 'visita_par', recordId: ID, op: 'upsert', at: T0 }, estado({ peerVisits: [v] }));
+    const out = toOutgoing(MUDANCA, estado({ peerVisits: [v] }));
     expect(out).toMatchObject({ tipo: 'visita_par', id: ID, atualizado_em: T0, apagado_em: null });
     expect(out?.dados).not.toHaveProperty('id');
     expect(out?.dados).not.toHaveProperty('updatedAt');
@@ -111,8 +113,7 @@ describe('visitas na cópia na internet', () => {
 
   it('a maior visita possível cabe num registro', () => {
     const v = visitaNoLimite();
-    const c = { id: 'c1', entity: 'visita_par' as const, recordId: ID, op: 'upsert' as const, at: T0 };
-    const b = buildOutgoing(estado({ peerVisits: [v], pendingChanges: [c] }));
+    const b = buildOutgoing(estado({ peerVisits: [v], pendingChanges: [MUDANCA] }));
     expect(b.records).toHaveLength(1);
     const json = JSON.stringify(b.records[0]);
     expect(json.length).toBeLessThan(MAX_RECORD_CHARS);
@@ -121,7 +122,7 @@ describe('visitas na cópia na internet', () => {
 
   it('ida e volta entre dois celulares, com apagamento e a mais recente vencendo', () => {
     const v = visita({ parecer: 'pendencias' });
-    const out = toOutgoing({ id: 'c1', entity: 'visita_par', recordId: ID, op: 'upsert', at: T0 }, estado({ peerVisits: [v] }));
+    const out = toOutgoing(MUDANCA, estado({ peerVisits: [v] }));
     const remoto = { ...out!, seq: 1 };
 
     const outro = mergeRemote(estado(), [remoto]);
@@ -138,7 +139,8 @@ describe('visitas na cópia na internet', () => {
   });
 
   it('ignora visita estragada vinda do servidor', () => {
-    const r = mergeRemote(estado(), [{ tipo: 'visita_par', id: '', dados: {}, atualizado_em: T1, apagado_em: null, seq: 1 }]);
+    const estragada = { tipo: 'visita_par', id: '', dados: {}, atualizado_em: T1, apagado_em: null, seq: 1 };
+    const r = mergeRemote(estado(), [estragada]);
     expect(r.applied).toBe(0);
     expect(r.state.peerVisits).toEqual([]);
   });

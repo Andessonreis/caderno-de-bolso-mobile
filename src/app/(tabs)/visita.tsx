@@ -1,19 +1,23 @@
-import { router } from 'expo-router';
-import { useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import { type ReactNode, useCallback, useState } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
 import { CheckRow } from '@/components/CheckRow';
+import { ChoiceTile } from '@/components/ChoiceTile';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { DateStepper } from '@/components/DateStepper';
 import { Icon } from '@/components/Icon';
+import { PeerVisitList } from '@/components/PeerVisitList';
 import { Screen } from '@/components/Screen';
+import { Snackbar } from '@/components/Snackbar';
 import { ProgressBar } from '@/components/StepProgress';
 import { type CheckItem, DEFAULT_PERIOD_DAYS, computeChecklist } from '@/lib/checklist';
 import { addDays, formatShortDate, today as todayISO } from '@/lib/dates';
 import { errorMessage, sharePdf } from '@/lib/device';
 import { visitHtml } from '@/lib/html';
+import { type Visita as VisitaPar, nomeDoProdutor } from '@/lib/roteiro';
 import { buildSummary } from '@/lib/summary';
 import type { ManualCheckId } from '@/lib/types';
 import { useApp, useAreas, useEntries, usePhotos } from '@/store';
@@ -59,7 +63,77 @@ function AutoItem({ item }: { item: CheckItem }) {
   );
 }
 
+type Modo = 'minha' | 'outra';
+
+/**
+ * Aba Visita, com os dois lados da visita de pares: "Minha roça" (se preparar
+ * para receber a visita) e "Visitar outra roça" (roteiro para quando você vai
+ * visitar outro produtor).
+ */
 export default function Visita() {
+  const params = useLocalSearchParams<{ modo?: string }>();
+  const [modo, setModo] = useState<Modo>(params.modo === 'outra' ? 'outra' : 'minha');
+  const deletePeerVisit = useApp((s) => s.deletePeerVisit);
+  const restorePeerVisit = useApp((s) => s.restorePeerVisit);
+  const [toDelete, setToDelete] = useState<VisitaPar | null>(null);
+  const [snack, setSnack] = useState<string | null>(null);
+  const [lastDeleted, setLastDeleted] = useState<string | null>(null);
+  const hideSnack = useCallback(() => setSnack(null), []);
+
+  const switcher = (
+    <View accessibilityRole="radiogroup" accessibilityLabel="Que visita?" style={styles.modes}>
+      <ChoiceTile
+        icon="home-outline"
+        label="Minha roça"
+        sublabel="Me preparar para receber a visita"
+        selected={modo === 'minha'}
+        onPress={() => setModo('minha')}
+      />
+      <ChoiceTile
+        icon="account-group-outline"
+        label="Visitar outra roça"
+        sublabel="Para quando você vai visitar outro produtor"
+        selected={modo === 'outra'}
+        onPress={() => setModo('outra')}
+      />
+    </View>
+  );
+
+  if (modo === 'minha') return <MinhaRoca top={switcher} />;
+
+  return (
+    <View style={styles.flex}>
+      <Screen top={switcher} title="Visitar outra roça">
+        <PeerVisitList onAskDelete={setToDelete} />
+      </Screen>
+      <ConfirmDialog
+        visible={toDelete !== null}
+        title="Apagar esta visita?"
+        message={toDelete ? `Visita a ${nomeDoProdutor(toDelete)}, com tudo o que foi respondido.` : ''}
+        confirmLabel="Sim, apagar"
+        danger
+        onConfirm={() => {
+          if (toDelete) deletePeerVisit(toDelete.id);
+          setLastDeleted(toDelete?.id ?? null);
+          setToDelete(null);
+          setSnack('Visita apagada.');
+        }}
+        onCancel={() => setToDelete(null)}
+      />
+      <Snackbar
+        message={snack}
+        actionLabel="Desfazer"
+        onAction={() => {
+          if (lastDeleted) restorePeerVisit(lastDeleted);
+        }}
+        onHide={hideSnack}
+      />
+    </View>
+  );
+}
+
+/** "Pronto para a visita": a lista para o produtor se preparar para receber a visita de pares. */
+function MinhaRoca({ top }: { top: ReactNode }) {
   const entries = useEntries();
   const areas = useAreas();
   const photos = usePhotos();
@@ -106,6 +180,7 @@ export default function Visita() {
 
   return (
     <Screen
+      top={top}
       title="Pronto para a visita"
       subtitle="Lista de apoio para se preparar para a visita de pares. Ela ajuda a organizar; não é o roteiro oficial do seu grupo nem de nenhuma certificadora.">
       <View style={styles.progress}>
@@ -206,6 +281,7 @@ export default function Visita() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  modes: { gap: space.sm, marginBottom: space.sm },
   progress: {
     gap: space.xs,
     padding: space.lg,
