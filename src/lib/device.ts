@@ -9,19 +9,28 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { Platform } from 'react-native';
 
-import { isRelativePhotoPath } from './photos';
+import { type MediaFile, buildArchive, bytesToText, isZip, mediaPathsOf, readArchive } from './archive';
+import { type BackupData, type ImportResult, parseBackup } from './backup';
+import { type MediaFolder, isRelativeMediaPath, mediaFolderOf } from './media';
 
 export class UserFacingError extends Error {}
 
-function photosDir(folder: 'anotacoes' | 'caderno'): Directory {
-  const dir = new Directory(Paths.document, 'fotos', folder);
+function mediaDir(folder: MediaFolder): Directory {
+  const dir =
+    folder === 'audios' ? new Directory(Paths.document, 'audios') : new Directory(Paths.document, 'fotos', folder);
   dir.create({ idempotent: true, intermediates: true });
   return dir;
 }
 
-function extensionOf(uri: string): string {
-  const m = /\.(jpe?g|png|heic|webp)(\?|$)/i.exec(uri);
-  return m ? m[1].toLowerCase() : 'jpg';
+function mediaFile(relative: string): File | null {
+  if (!isRelativeMediaPath(relative)) return null;
+  const [folder, name] = relative.split('/');
+  return folder === 'audios' ? new File(Paths.document, 'audios', name) : new File(Paths.document, 'fotos', folder, name);
+}
+
+function extensionOf(uri: string, fallback: string): string {
+  const m = /\.([a-z0-9]{2,5})(\?|$)/i.exec(uri);
+  return m ? m[1].toLowerCase() : fallback;
 }
 
 /**
@@ -46,41 +55,51 @@ export async function takePhoto(source: 'camera' | 'galeria', folder: 'anotacoes
     source === 'camera' ? await ImagePicker.launchCameraAsync(options) : await ImagePicker.launchImageLibraryAsync(options);
   if (result.canceled) return null;
   const asset = result.assets[0];
-  const name = `${Date.now()}.${extensionOf(asset.uri)}`;
-  await new File(asset.uri).copy(new File(photosDir(folder), name));
+  const name = `${Date.now()}.${extensionOf(asset.uri, 'jpg')}`;
+  await new File(asset.uri).copy(new File(mediaDir(folder), name));
   return `${folder}/${name}`;
 }
 
-function photoFile(relative: string): File | null {
-  if (!isRelativePhotoPath(relative)) return null;
-  const [folder, name] = relative.split('/');
-  return new File(Paths.document, 'fotos', folder, name);
+/**
+ * Move a gravação recém-feita (que o gravador deixa numa pasta temporária)
+ * para a pasta de recados do app. Retorna o caminho relativo ("audios/arquivo").
+ */
+export async function saveRecording(tempUri: string): Promise<string> {
+  const name = `${Date.now()}.${extensionOf(tempUri, 'm4a')}`;
+  const source = new File(tempUri);
+  await source.copy(new File(mediaDir('audios'), name));
+  try {
+    source.delete();
+  } catch {
+    // O arquivo temporário some sozinho com o tempo.
+  }
+  return `audios/${name}`;
 }
 
-/** Endereço para mostrar a foto, montado a partir do caminho relativo salvo. */
-export function photoUri(relative: string | undefined): string | undefined {
+/** Endereço para mostrar a foto ou tocar o áudio, montado a partir do caminho relativo salvo. */
+export function mediaUri(relative: string | undefined): string | undefined {
   if (!relative || Platform.OS === 'web') return undefined;
-  return photoFile(relative)?.uri;
+  return mediaFile(relative)?.uri;
 }
 
-/** A foto existe neste aparelho? */
-export function photoExists(relative: string): boolean {
+/** O arquivo existe neste aparelho? */
+export function mediaExists(relative: string): boolean {
   if (Platform.OS === 'web') return false;
   try {
-    return photoFile(relative)?.exists ?? false;
+    return mediaFile(relative)?.exists ?? false;
   } catch {
     return false;
   }
 }
 
-/** Apaga a foto guardada pelo app. Ignora se ela já não existir. */
-export function deletePhotoFile(relative: string | undefined): void {
+/** Apaga a foto ou o áudio guardado pelo app. Ignora se já não existir. */
+export function deleteMediaFile(relative: string | undefined): void {
   if (!relative || Platform.OS === 'web') return;
   try {
-    const f = photoFile(relative);
+    const f = mediaFile(relative);
     if (f?.exists) f.delete();
   } catch {
-    // A foto pode ter sido apagada fora do app; não há o que fazer.
+    // O arquivo pode ter sido apagado fora do app; não há o que fazer.
   }
 }
 
@@ -109,26 +128,62 @@ export async function printHtml(html: string): Promise<void> {
   await Print.printAsync({ html });
 }
 
-/** Salva o texto num arquivo .json e abre o compartilhar. */
-export async function shareJson(text: string, fileName: string): Promise<void> {
+/**
+ * Gera um único arquivo .zip com os dados, as fotos e os recados de voz e abre
+ * o compartilhar. Retorna quantos arquivos de mídia foram junto.
+ */
+export async function exportBackup(data: BackupData, fileName: string): Promise<number> {
   if (Platform.OS === 'web') throw new UserFacingError('Exportar só funciona no celular.');
-  const file = new File(Paths.cache, `${fileName}.json`);
+  const media: MediaFile[] = [];
+  for (const path of mediaPathsOf(data)) {
+    const f = mediaFile(path);
+    if (f?.exists) media.push({ path, bytes: await f.bytes() });
+  }
+  const zip = buildArchive(data, media);
+  const file = new File(Paths.cache, `${fileName}.zip`);
   if (file.exists) file.delete();
   file.create();
-  await file.write(text);
-  await shareFile(file, 'application/json', 'Guardar cópia dos dados');
+  await file.write(zip);
+  await shareFile(file, 'application/zip', 'Guardar cópia de segurança');
+  return media.length;
 }
 
-/** Pede para escolher um arquivo e devolve o texto dele, ou null se desistiu. */
-export async function pickTextFile(): Promise<string | null> {
+async function pickBytes(): Promise<Uint8Array | null> {
   const result = await DocumentPicker.getDocumentAsync({
-    type: ['application/json', 'text/plain', '*/*'],
+    type: ['application/zip', 'application/json', 'application/octet-stream', '*/*'],
     copyToCacheDirectory: true,
   });
   if (result.canceled) return null;
   const asset = result.assets[0];
-  if (Platform.OS === 'web' && asset.file) return asset.file.text();
-  return new File(asset.uri).text();
+  if (Platform.OS === 'web' && asset.file) return new Uint8Array(await asset.file.arrayBuffer());
+  return new File(asset.uri).bytes();
+}
+
+/**
+ * Escolhe um arquivo de cópia (.zip, ou .json antigo), confere tudo e só então
+ * grava fotos e áudios na pasta do app. Retorna null se a pessoa desistiu.
+ * Os dados conferidos voltam para quem chamou trocar o estado do app.
+ */
+export async function importBackup(): Promise<ImportResult | null> {
+  if (Platform.OS === 'web') throw new UserFacingError('Importar só funciona no celular.');
+  const bytes = await pickBytes();
+  if (!bytes) return null;
+  if (!isZip(bytes)) return parseBackup(bytesToText(bytes), mediaExists);
+
+  const content = readArchive(bytes);
+  if (!content) return { ok: false, error: 'O arquivo .zip não é uma cópia do Caderno de Bolso.' };
+  const inArchive = new Set(content.media.map((m) => m.path));
+  const result = parseBackup(content.json, (p) => inArchive.has(p) || mediaExists(p));
+  if (!result.ok) return result;
+  for (const m of content.media) {
+    const target = mediaFile(m.path);
+    if (!target) continue;
+    mediaDir(mediaFolderOf(m.path));
+    if (target.exists) target.delete();
+    target.create();
+    await target.write(m.bytes);
+  }
+  return result;
 }
 
 export function hapticSuccess(): void {

@@ -1,20 +1,27 @@
 import { DESTINATIONS, INPUTS, INPUT_ORIGINS, MANUAL_CHECKS, PURCHASE_KINDS, SEED_ORIGINS, isUnit } from './catalog';
 import { parseISODate } from './dates';
-import { toRelativePhotoPath } from './photos';
-import type { ActivityKind, Area, Entry, ManualCheckId, Profile } from './types';
+import { uuid } from './ids';
+import { isRelativeMediaPath, toRelativeMediaPath } from './media';
+import { type MigrationDeps, normalizeRecords } from './migrate';
+import type { ActivityKind, Area, Entry, ManualCheckId, NotebookPhoto, Profile } from './types';
+
+/** Versão atual do arquivo de cópia de segurança. */
+export const BACKUP_VERSION = 2;
 
 /**
- * Dados que vão no arquivo de exportação. As fotos não vão (deixariam o arquivo
- * enorme); elas continuam guardadas no aparelho.
+ * Dados do arquivo de cópia de segurança (`dados.json` dentro do .zip). As
+ * fotos e os recados de voz vão como arquivos ao lado, em `midia/`.
+ * A versão 1 (só JSON, sem mídia) continua sendo aceita na importação.
  */
 export interface BackupData {
   app: 'caderno-de-bolso';
-  version: 1;
+  version: typeof BACKUP_VERSION;
   exportedAt: string;
   profile: Profile | null;
   areas: Area[];
   crops: string[];
   entries: Entry[];
+  photos: NotebookPhoto[];
   manualChecks: Partial<Record<ManualCheckId, boolean>>;
   lastVisitDate?: string;
 }
@@ -61,6 +68,10 @@ export function isEntry(v: unknown): v is Entry {
     optString(v.variety) &&
     optString(v.photo) &&
     optString(v.photoUri) &&
+    optString(v.audio) &&
+    optPositive(v.audioSeconds) &&
+    optString(v.updatedAt) &&
+    optString(v.deletedAt) &&
     optOneOf(v.seedOrigin, SEED_ORIGINS) &&
     optOneOf(v.input, INPUTS) &&
     optOneOf(v.inputOrigin, INPUT_ORIGINS) &&
@@ -70,7 +81,20 @@ export function isEntry(v: unknown): v is Entry {
 }
 
 function isArea(v: unknown): v is Area {
-  return isObj(v) && nonEmpty(v.id) && nonEmpty(v.name);
+  return isObj(v) && nonEmpty(v.id) && nonEmpty(v.name) && optString(v.updatedAt) && optString(v.deletedAt);
+}
+
+function isNotebookPhoto(v: unknown): v is NotebookPhoto {
+  return (
+    isObj(v) &&
+    nonEmpty(v.id) &&
+    isRelativeMediaPath(v.file) &&
+    typeof v.date === 'string' &&
+    parseISODate(v.date) !== null &&
+    optString(v.caption) &&
+    optString(v.updatedAt) &&
+    optString(v.deletedAt)
+  );
 }
 
 function isProfile(v: unknown): v is Profile {
@@ -81,17 +105,22 @@ function isProfile(v: unknown): v is Profile {
   );
 }
 
-/**
- * Normaliza a foto de uma anotação importada: aceita o caminho relativo ou o
- * endereço completo antigo, e descarta se a foto não existir neste aparelho.
- */
-function importedPhoto(raw: Record<string, unknown>, photoExists: (relative: string) => boolean): string | undefined {
-  const stored = typeof raw.photo === 'string' ? raw.photo : typeof raw.photoUri === 'string' ? raw.photoUri : undefined;
-  const relative = toRelativePhotoPath(stored);
-  return relative && photoExists(relative) ? relative : undefined;
+/** Normaliza a mídia importada e descarta a que não existir neste aparelho. */
+function importedMedia(stored: unknown, mediaExists: (relative: string) => boolean): string | undefined {
+  const relative = toRelativeMediaPath(typeof stored === 'string' ? stored : undefined);
+  return relative && mediaExists(relative) ? relative : undefined;
 }
 
-export type ImportResult = { ok: true; data: BackupData; droppedPhotos: number } | { ok: false; error: string };
+export type ImportResult =
+  | {
+      ok: true;
+      data: BackupData;
+      /** Fotos ou recados citados no arquivo que não vieram junto nem existem no aparelho. */
+      droppedMedia: number;
+      /** Arquivo da versão 1 (só dados, sem fotos do caderno). */
+      legacy: boolean;
+    }
+  | { ok: false; error: string };
 
 const GENERIC_ERROR = 'O arquivo não pôde ser lido. Escolha um arquivo exportado pelo Caderno de Bolso.';
 
@@ -99,15 +128,23 @@ const GENERIC_ERROR = 'O arquivo não pôde ser lido. Escolha um arquivo exporta
  * Confere um arquivo importado antes de substituir os dados do aparelho.
  * Nunca lança erro: qualquer problema vira uma mensagem amigável.
  */
-export function parseBackup(text: string, photoExists: (relative: string) => boolean = () => false): ImportResult {
+export function parseBackup(
+  text: string,
+  mediaExists: (relative: string) => boolean = () => false,
+  deps: MigrationDeps = { newId: uuid, now: new Date().toISOString() },
+): ImportResult {
   try {
-    return parseBackupUnsafe(text, photoExists);
+    return parseBackupUnsafe(text, mediaExists, deps);
   } catch {
     return { ok: false, error: GENERIC_ERROR };
   }
 }
 
-function parseBackupUnsafe(text: string, photoExists: (relative: string) => boolean): ImportResult {
+function parseBackupUnsafe(
+  text: string,
+  mediaExists: (relative: string) => boolean,
+  deps: MigrationDeps,
+): ImportResult {
   let raw: unknown;
   try {
     raw = JSON.parse(text);
@@ -116,7 +153,8 @@ function parseBackupUnsafe(text: string, photoExists: (relative: string) => bool
   }
   if (!isObj(raw) || raw.app !== 'caderno-de-bolso')
     return { ok: false, error: 'Esse arquivo não é uma cópia do Caderno de Bolso.' };
-  if (raw.version !== 1) return { ok: false, error: 'Esse arquivo é de uma versão diferente do app.' };
+  if (raw.version !== 1 && raw.version !== 2)
+    return { ok: false, error: 'Esse arquivo é de uma versão diferente do app.' };
   const profile = raw.profile;
   if (profile !== null && !isProfile(profile))
     return { ok: false, error: 'Os dados do produtor no arquivo estão com problema.' };
@@ -127,15 +165,37 @@ function parseBackupUnsafe(text: string, photoExists: (relative: string) => bool
   if (!Array.isArray(raw.entries) || !raw.entries.every(isEntry))
     return { ok: false, error: 'As anotações no arquivo estão com problema.' };
 
-  let droppedPhotos = 0;
-  const entries: Entry[] = raw.entries.map((e) => {
+  const rawPhotos = raw.version === 2 ? raw.photos : [];
+  if (!Array.isArray(rawPhotos) || !rawPhotos.every(isNotebookPhoto))
+    return { ok: false, error: 'As fotos do caderno no arquivo estão com problema.' };
+
+  let droppedMedia = 0;
+  const cleanEntries = raw.entries.map((e) => {
     const rawEntry = e as unknown as Record<string, unknown>;
-    const { photoUri: _legacy, ...rest } = rawEntry;
-    const hadPhoto = typeof rawEntry.photo === 'string' || typeof rawEntry.photoUri === 'string';
-    const photo = importedPhoto(rawEntry, photoExists);
-    if (hadPhoto && !photo) droppedPhotos += 1;
-    return { ...(rest as unknown as Entry), photo };
+    const { photoUri: _legacy, photo: _photo, audio: _audio, audioSeconds: _seconds, ...rest } = rawEntry;
+    const storedPhoto = rawEntry.photo ?? rawEntry.photoUri;
+    const photo = importedMedia(storedPhoto, mediaExists);
+    const audio = importedMedia(rawEntry.audio, mediaExists);
+    if (storedPhoto !== undefined && !photo) droppedMedia += 1;
+    if (rawEntry.audio !== undefined && !audio) droppedMedia += 1;
+    const out: Record<string, unknown> = { ...rest };
+    if (photo) out.photo = photo;
+    if (audio) {
+      out.audio = audio;
+      if (typeof rawEntry.audioSeconds === 'number') out.audioSeconds = rawEntry.audioSeconds;
+    }
+    return out;
   });
+  const photos = rawPhotos.filter((p) => {
+    const ok = mediaExists(p.file);
+    if (!ok) droppedMedia += 1;
+    return ok;
+  });
+  const exportedAt = typeof raw.exportedAt === 'string' && !Number.isNaN(Date.parse(raw.exportedAt)) ? raw.exportedAt : deps.now;
+  const normalized = normalizeRecords(
+    { areas: raw.areas as unknown[], entries: cleanEntries, photos: photos as unknown[] },
+    { ...deps, now: exportedAt },
+  );
 
   const manualChecks: BackupData['manualChecks'] = {};
   if (isObj(raw.manualChecks)) {
@@ -148,15 +208,17 @@ function parseBackupUnsafe(text: string, photoExists: (relative: string) => bool
 
   return {
     ok: true,
-    droppedPhotos,
+    droppedMedia,
+    legacy: raw.version === 1,
     data: {
       app: 'caderno-de-bolso',
-      version: 1,
-      exportedAt: typeof raw.exportedAt === 'string' ? raw.exportedAt : '',
+      version: BACKUP_VERSION,
+      exportedAt,
       profile: profile as Profile | null,
-      areas: raw.areas,
+      areas: normalized.areas as Area[],
       crops: raw.crops,
-      entries,
+      entries: normalized.entries as unknown as Entry[],
+      photos: normalized.photos as NotebookPhoto[],
       manualChecks,
       lastVisitDate,
     },

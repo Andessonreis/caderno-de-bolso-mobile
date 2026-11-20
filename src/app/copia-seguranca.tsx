@@ -9,21 +9,19 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { EmptyState } from '@/components/EmptyState';
 import { Field } from '@/components/Field';
 import { Screen } from '@/components/Screen';
-import { parseBackup } from '@/lib/backup';
 import { lastBackupDate } from '@/lib/checklist';
 import { formatRelativeDay, formatShortDate, today as todayISO } from '@/lib/dates';
 import {
-  deletePhotoFile,
+  deleteMediaFile,
   errorMessage,
+  exportBackup,
   hapticSuccess,
-  photoExists,
-  photoUri,
-  pickTextFile,
-  shareJson,
+  importBackup,
+  mediaUri,
   takePhoto,
 } from '@/lib/device';
 import type { NotebookPhoto } from '@/lib/types';
-import { exportSnapshot, newId, useApp } from '@/store';
+import { exportSnapshot, newId, useApp, usePhotos } from '@/store';
 import { colors, radius, space } from '@/theme';
 
 function PhotoViewer({ photo, onClose }: { photo: NotebookPhoto | null; onClose: () => void }) {
@@ -41,7 +39,7 @@ function PhotoViewer({ photo, onClose }: { photo: NotebookPhoto | null; onClose:
             Página fotografada em {formatShortDate(photo.date)}
           </AppText>
           <Image
-            source={{ uri: photoUri(photo.file) }}
+            source={{ uri: mediaUri(photo.file) }}
             style={styles.full}
             contentFit="contain"
             accessibilityLabel={photo.caption ? `Foto: ${photo.caption}` : 'Foto da página do caderno'}
@@ -76,7 +74,7 @@ function PhotoViewer({ photo, onClose }: { photo: NotebookPhoto | null; onClose:
           danger
           onConfirm={() => {
             removePhoto(photo.id);
-            deletePhotoFile(photo.file);
+            deleteMediaFile(photo.file);
             setConfirm(false);
             onClose();
           }}
@@ -88,7 +86,7 @@ function PhotoViewer({ photo, onClose }: { photo: NotebookPhoto | null; onClose:
 }
 
 export default function CopiaSeguranca() {
-  const photos = useApp((s) => s.photos);
+  const photos = usePhotos();
   const lastExportAt = useApp((s) => s.lastExportAt);
   const addPhoto = useApp((s) => s.addPhoto);
   const markExported = useApp((s) => s.markExported);
@@ -125,7 +123,7 @@ export default function CopiaSeguranca() {
     setBusy('export');
     try {
       const data = exportSnapshot(useApp.getState(), new Date().toISOString());
-      await shareJson(JSON.stringify(data, null, 1), `caderno-de-bolso-${today}`);
+      await exportBackup(data, `caderno-de-bolso-${today}`);
       markExported(today);
       hapticSuccess();
     } catch (e) {
@@ -139,17 +137,16 @@ export default function CopiaSeguranca() {
     setConfirmImport(false);
     setBusy('import');
     try {
-      const text = await pickTextFile();
-      if (text === null) return;
-      const result = parseBackup(text, photoExists);
+      const result = await importBackup();
+      if (result === null) return;
       if (!result.ok) {
         Alert.alert('Importar', result.error);
         return;
       }
-      importData(result.data);
+      importData(result.data, result.legacy);
       hapticSuccess();
-      const lost = result.droppedPhotos
-        ? ` ${result.droppedPhotos === 1 ? '1 foto de anotação não está' : `${result.droppedPhotos} fotos de anotação não estão`} neste celular e ficou de fora.`
+      const lost = result.droppedMedia
+        ? ` ${result.droppedMedia === 1 ? '1 foto ou recado não veio' : `${result.droppedMedia} fotos ou recados não vieram`} no arquivo e ficou de fora.`
         : '';
       Alert.alert('Importar', `Pronto! ${result.data.entries.length} anotações foram trazidas do arquivo.${lost}`);
     } catch (e) {
@@ -214,7 +211,7 @@ export default function CopiaSeguranca() {
                   accessibilityLabel={`Abrir foto${p.caption ? `: ${p.caption}` : ''}`}
                   onPress={() => setViewing(p)}
                   style={({ pressed }) => [styles.tile, pressed && { opacity: 0.8 }]}>
-                  <Image source={{ uri: photoUri(p.file) }} style={styles.thumb} contentFit="cover" />
+                  <Image source={{ uri: mediaUri(p.file) }} style={styles.thumb} contentFit="cover" />
                   <AppText variant="small" numberOfLines={2} style={styles.caption}>
                     {p.caption ?? 'Sem legenda'}
                   </AppText>
@@ -228,8 +225,8 @@ export default function CopiaSeguranca() {
       <View style={styles.box}>
         <AppText variant="heading">Exportar meus dados</AppText>
         <AppText variant="body" color={colors.inkMuted}>
-          Gera um arquivo com seus dados e anotações para guardar no WhatsApp, no e-mail ou num pen drive. As fotos não
-          vão no arquivo.
+          Gera um único arquivo (.zip) com seus dados, anotações, fotos e recados de voz, para guardar no WhatsApp, no
+          e-mail ou num pen drive.
         </AppText>
         <Button
           label="Exportar meus dados"
@@ -243,7 +240,7 @@ export default function CopiaSeguranca() {
       <View style={styles.box}>
         <AppText variant="heading">Importar</AppText>
         <AppText variant="body" color={colors.inkMuted}>
-          Traz de volta um arquivo exportado antes, por exemplo num celular novo.
+          Traz de volta tudo de um arquivo exportado antes, por exemplo num celular novo.
         </AppText>
         <Button
           label="Importar arquivo"
@@ -258,7 +255,7 @@ export default function CopiaSeguranca() {
       <ConfirmDialog
         visible={confirmImport}
         title="Trocar os dados pelo arquivo?"
-        message="Os dados e anotações que estão no app agora serão trocados pelos do arquivo. As fotos continuam. Se quiser, exporte antes."
+        message="Os dados, anotações, fotos e recados que estão no app agora serão trocados pelos do arquivo. Se quiser, exporte antes."
         confirmLabel="Sim, escolher arquivo"
         onConfirm={doImport}
         onCancel={() => setConfirmImport(false)}
