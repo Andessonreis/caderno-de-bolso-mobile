@@ -77,7 +77,7 @@ npx expo-doctor     # confere dependências e configuração
 
 ### Endereço do site da ficha
 
-O QR aponta para o site que mostra a ficha do produtor. O endereço vem de `EXPO_PUBLIC_WEB_URL`. Se ela não estiver definida, o app usa `https://caderno-de-bolso-web.vercel.app`. Para trocar, copie `.env.example` para `.env` e ajuste o valor.
+O QR aponta para o site que mostra a ficha do produtor. O endereço vem de `EXPO_PUBLIC_WEB_URL`. Se ela não estiver definida, o app usa `https://andessonreis.github.io/caderno-de-bolso-web` (o site publicado no GitHub Pages). Uma barra no final do endereço é ignorada. Para trocar, copie `.env.example` para `.env` e ajuste o valor.
 
 ## Estrutura
 
@@ -105,7 +105,9 @@ As fotos não vão para o AsyncStorage. Elas são copiadas para a pasta de docum
 
 ## Contrato da ficha (QR)
 
-URL: `${EXPO_PUBLIC_WEB_URL}/ficha#d=<payload>`
+URL: `${EXPO_PUBLIC_WEB_URL}/ficha/#d=<payload>`
+
+A barra antes do `#` é proposital: o site é exportado com barra no final das rotas.
 
 `payload` é o base64url (sem `=` no final, com `-` e `_`) dos bytes UTF-8 de `JSON.stringify(obj)`:
 

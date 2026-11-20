@@ -1,4 +1,5 @@
 import {
+  DEFAULT_WEB_URL,
   type Ficha,
   base64UrlDecode,
   base64UrlEncode,
@@ -8,6 +9,7 @@ import {
   fichaUrl,
   utf8Decode,
   utf8Encode,
+  webUrl,
 } from '../ficha';
 
 describe('base64url e UTF-8', () => {
@@ -80,8 +82,25 @@ describe('fichaFromProfile', () => {
 });
 
 describe('fichaUrl', () => {
-  it('monta a URL do contrato', () => {
+  it('monta a URL do contrato com barra antes do #', () => {
     const f: Ficha = { v: 1, n: 'Ana' };
-    expect(fichaUrl(f, 'https://exemplo.app/')).toBe(`https://exemplo.app/ficha#d=${encodeFicha(f)}`);
+    expect(fichaUrl(f, 'https://exemplo.app')).toBe(`https://exemplo.app/ficha/#d=${encodeFicha(f)}`);
+  });
+
+  it('remove barras finais repetidas do endereço do site', () => {
+    const f: Ficha = { v: 1, n: 'Ana' };
+    expect(fichaUrl(f, 'https://exemplo.app/site//')).toBe(`https://exemplo.app/site/ficha/#d=${encodeFicha(f)}`);
+  });
+
+  it('usa o GitHub Pages como endereço padrão', () => {
+    const before = process.env.EXPO_PUBLIC_WEB_URL;
+    delete process.env.EXPO_PUBLIC_WEB_URL;
+    try {
+      expect(webUrl()).toBe(DEFAULT_WEB_URL);
+      expect(DEFAULT_WEB_URL).toBe('https://andessonreis.github.io/caderno-de-bolso-web');
+      expect(fichaUrl({ v: 1, n: 'Ana' })).toMatch(/^https:\/\/andessonreis\.github\.io\/caderno-de-bolso-web\/ficha\/#d=/);
+    } finally {
+      if (before !== undefined) process.env.EXPO_PUBLIC_WEB_URL = before;
+    }
   });
 });

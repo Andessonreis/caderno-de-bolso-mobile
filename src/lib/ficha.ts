@@ -2,7 +2,7 @@ import type { ISODate, Profile } from './types';
 
 /**
  * Ficha pública do produtor, codificada no QR. O formato é um contrato com o
- * site: `${WEB_URL}/ficha#d=<payload>`, onde payload é base64url (sem padding)
+ * site: `${WEB_URL}/ficha/#d=<payload>`, onde payload é base64url (sem padding)
  * dos bytes UTF-8 de JSON.stringify(ficha). Chaves vazias são omitidas.
  */
 export interface Ficha {
@@ -21,7 +21,7 @@ export interface Ficha {
 
 export const FICHA_VERSION = 1;
 export const MAX_CROPS = 12;
-export const DEFAULT_WEB_URL = 'https://caderno-de-bolso-web.vercel.app';
+export const DEFAULT_WEB_URL = 'https://andessonreis.github.io/caderno-de-bolso-web';
 
 const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
 
@@ -159,6 +159,7 @@ export function webUrl(): string {
   return (fromEnv && fromEnv.trim() ? fromEnv.trim() : DEFAULT_WEB_URL).replace(/\/+$/, '');
 }
 
+/** O site é exportado com barra no final das rotas, por isso `/ficha/#d=`. */
 export function fichaUrl(f: Ficha, base: string = webUrl()): string {
-  return `${base.replace(/\/+$/, '')}/ficha#d=${encodeFicha(f)}`;
+  return `${base.trim().replace(/\/+$/, '')}/ficha/#d=${encodeFicha(f)}`;
 }
