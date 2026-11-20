@@ -56,7 +56,22 @@
           "enableBackgroundPlayback": false
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      [
+        "expo-secure-store",
+        {
+          "configureAndroidBackup": true
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "O Caderno de Bolso usa a câmera para ler o código que liga outro celular ao seu caderno e para fotografar as anotações.",
+          "microphonePermission": "O Caderno de Bolso usa o microfone para gravar recados de voz nas suas anotações.",
+          "recordAudioAndroid": true,
+          "barcodeScannerEnabled": true
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
