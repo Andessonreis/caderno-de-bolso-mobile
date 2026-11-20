@@ -95,14 +95,15 @@ describe('resumo', () => {
 
 describe('colheita e venda', () => {
   const range = { start: '2026-11-01', end: '2026-11-30' };
-  it('saldo só quando a unidade bate', () => {
+  it('no período mostra colhido, vendido e recebido; o saldo é acumulado', () => {
     const r = harvestByCrop(
       [
+        entry({ activity: 'colheita', crop: 'tomate', date: '2026-10-30', quantity: 10, unit: 'caixa' }),
         entry({ activity: 'colheita', crop: 'tomate', date: '2026-11-02', quantity: 4, unit: 'caixa' }),
         entry({ activity: 'venda', crop: 'tomate', date: '2026-11-03', quantity: 3, unit: 'caixa', value: 90 }),
         entry({ activity: 'venda', crop: 'tomate', date: '2026-11-04', quantity: 20, unit: 'kg', value: 80.5 }),
         entry({ activity: 'venda', crop: 'tomate', date: '2026-11-05', quantity: 2, unit: 'kg' }),
-        entry({ activity: 'colheita', crop: 'tomate', date: '2026-10-30', quantity: 99, unit: 'caixa' }),
+        entry({ activity: 'colheita', crop: 'tomate', date: '2026-12-01', quantity: 50, unit: 'caixa' }),
       ],
       range,
     );
@@ -110,8 +111,32 @@ describe('colheita e venda', () => {
     const t = r[0];
     expect(t.received).toBe(170.5);
     expect(t.salesWithoutValue).toBe(1);
-    expect(t.units.find((u) => u.unit === 'caixa')).toEqual({ unit: 'caixa', harvested: 4, sold: 3, balance: 1 });
-    expect(t.units.find((u) => u.unit === 'kg')).toEqual({ unit: 'kg', harvested: 0, sold: 22, balance: null });
+    // período: 4 colhidas e 3 vendidas; acumulado até 30/11: 14 − 3 = 11 (dezembro não entra)
+    expect(t.units.find((u) => u.unit === 'caixa')).toEqual({ unit: 'caixa', harvested: 4, sold: 3, stock: 11, oversold: false });
+    expect(t.units.find((u) => u.unit === 'kg')).toEqual({ unit: 'kg', harvested: 0, sold: 22, stock: null, oversold: false });
+  });
+
+  it('colheu no domingo e vendeu na segunda não acusa venda a mais', () => {
+    const list = [
+      entry({ activity: 'colheita', crop: 'alface', date: '2026-11-15', quantity: 40, unit: 'unidade' }),
+      entry({ activity: 'venda', crop: 'alface', date: '2026-11-16', quantity: 35, unit: 'unidade', value: 70 }),
+    ];
+    const semana = harvestByCrop(list, { start: '2026-11-16', end: '2026-11-22' });
+    expect(semana[0].units[0]).toEqual({ unit: 'unidade', harvested: 0, sold: 35, stock: 5, oversold: false });
+  });
+
+  it('avisa venda maior que colheita só pelo acumulado', () => {
+    const list = [
+      entry({ activity: 'colheita', crop: 'couve', date: '2026-11-01', quantity: 5, unit: 'maco' }),
+      entry({ activity: 'venda', crop: 'couve', date: '2026-11-02', quantity: 8, unit: 'maco' }),
+    ];
+    const r = harvestByCrop(list, range);
+    expect(r[0].units[0]).toMatchObject({ stock: -3, oversold: true });
+  });
+
+  it('cultura sem movimento no período não aparece', () => {
+    const list = [entry({ activity: 'colheita', crop: 'milho', date: '2026-10-01', quantity: 5, unit: 'saca' })];
+    expect(harvestByCrop(list, range)).toEqual([]);
   });
 
   it('barras proporcionais', () => {
@@ -134,7 +159,7 @@ describe('lista de conferência', () => {
         entry({ activity: 'colheita', crop: 'alface', date: '2026-11-18', quantity: 5, unit: 'unidade', copied: true }),
         entry({ activity: 'venda', crop: 'alface', date: '2026-11-18', quantity: 5, unit: 'unidade' }),
       ],
-      photos: [{ id: 'p', uri: 'file://x', date: '2026-11-01' }],
+      photos: [{ id: 'p', file: 'caderno/x.jpg', date: '2026-11-01' }],
       manual: { notas: true, dtcs: true, plano: true, separacao: true, pendencias: true },
     });
     expect(c.items.every((i) => i.done)).toBe(true);
@@ -178,7 +203,7 @@ describe('lista de conferência', () => {
   });
 
   it('usa a cópia mais recente', () => {
-    expect(lastBackupDate([{ id: '1', uri: '', date: '2026-10-01' }], '2026-11-02')).toBe('2026-11-02');
+    expect(lastBackupDate([{ id: '1', file: 'caderno/1.jpg', date: '2026-10-01' }], '2026-11-02')).toBe('2026-11-02');
     expect(lastBackupDate([], undefined)).toBeUndefined();
   });
 });

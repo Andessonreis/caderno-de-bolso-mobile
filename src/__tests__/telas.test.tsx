@@ -86,4 +86,38 @@ describe('telas do app', () => {
     expect(sizeBefore).toBe(18);
     expect(sizeAfter).toBe(Math.round(18 * 1.3));
   });
+
+  it('endereço inexistente mostra aviso em português com volta ao início', async () => {
+    await act(() => useApp.getState().loadSample('2026-11-20'));
+    await renderRouter(APP_DIR, { initialUrl: '/rota-que-nao-existe' });
+    expect(await screen.findByText('Essa tela não existe')).toBeTruthy();
+    expect(screen.getByLabelText('Voltar para o início')).toBeTruthy();
+  });
+
+  it('editar anotação passada a limpo volta a ficar pendente e o desfazer restaura', async () => {
+    await act(() => useApp.getState().loadSample('2026-11-20'));
+    const original = useApp.getState().entries.find((e) => e.id === 'ex-1');
+    expect(original?.copied).toBe(true);
+    await renderRouter(APP_DIR, { initialUrl: '/anotar?id=ex-1' });
+    expect(await screen.findByText('Mudar anotação')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Ontem'));
+    await fireEvent.press(screen.getByLabelText('Salvar alteração'));
+    expect(await screen.findByText(/voltou para "falta passar para o caderno"/)).toBeTruthy();
+    expect(useApp.getState().entries.find((e) => e.id === 'ex-1')?.copied).toBe(false);
+    await fireEvent.press(screen.getByLabelText('Desfazer'));
+    expect(useApp.getState().entries.find((e) => e.id === 'ex-1')).toEqual(original);
+  });
+
+  it('mudar a data da visita pergunta e zera os itens marcados à mão', async () => {
+    await act(() => {
+      useApp.getState().loadSample('2026-11-20');
+      useApp.getState().setManualCheck('notas', true);
+    });
+    await renderRouter(APP_DIR, { initialUrl: '/visita' });
+    await fireEvent.press(await screen.findByLabelText('Informar a data'));
+    await fireEvent.press(screen.getByLabelText('Pronto'));
+    expect(await screen.findByText('Desmarcar os itens que você marcou?')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Sim, desmarcar'));
+    expect(useApp.getState().manualChecks).toEqual({});
+  });
 });
