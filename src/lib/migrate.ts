@@ -168,9 +168,17 @@ function v3ToV4(state: Record<string, unknown>, deps: MigrationDeps): Record<str
   };
 }
 
-/** Versão 4 → 5: entram as visitas feitas à roça de outros produtores (roteiro de visita). */
+/**
+ * Versão 4 → 5: entram as visitas feitas à roça de outros produtores (roteiro
+ * de visita). O cursor da cópia na internet volta a zero: a versão anterior
+ * pulava as visitas que outro celular já tinha enviado, mas andava o cursor, e
+ * elas nunca mais viriam. Receber tudo de novo não estraga nada (vence sempre a
+ * alteração mais recente).
+ */
 function v4ToV5(state: Record<string, unknown>): Record<string, unknown> {
-  return { ...state, peerVisits: Array.isArray(state.peerVisits) ? state.peerVisits : [] };
+  const peerVisits = Array.isArray(state.peerVisits) ? state.peerVisits : [];
+  if (!isObj(state.sync)) return { ...state, peerVisits };
+  return { ...state, peerVisits, sync: { ...state.sync, cursor: 0 } };
 }
 
 /** Atualiza dados salvos por versões anteriores do app. */

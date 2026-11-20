@@ -53,6 +53,24 @@ describe('visitas guardadas no aparelho', () => {
     expect(migratePersisted(v4, 4)).toEqual({ ...v4, peerVisits: [] });
   });
 
+  it('versão 4 → 5: a cópia na internet volta a receber desde o começo, para trazer as visitas', () => {
+    const sync = { ligado: true, perguntado: true, cursor: 42, enviados: { 'anotacoes/1.jpg': true } };
+    const v4 = { entries: [], photos: [], pendingChanges: [], sync };
+    expect(migratePersisted(v4, 4)).toEqual({ ...v4, peerVisits: [], sync: { ...sync, cursor: 0 } });
+    // Já na versão 5, o cursor fica como está.
+    expect(migratePersisted({ ...v4, peerVisits: [] }, 5)).toMatchObject({ sync: { cursor: 42 } });
+  });
+
+  it('receber de novo as visitas que já estão aqui não muda nada', () => {
+    const v = visita({ parecer: 'conforme' });
+    const out = toOutgoing(MUDANCA, estado({ peerVisits: [v] }));
+    const remoto = { ...out!, seq: 1 };
+    const primeira = mergeRemote(estado(), [remoto]);
+    const segunda = mergeRemote(primeira.state, [remoto]);
+    expect(segunda.applied).toBe(0);
+    expect(segunda.state.peerVisits).toEqual(primeira.state.peerVisits);
+  });
+
   it('salvar, apagar e desfazer passam pela fila de envio', () => {
     useApp.getState().resetAll();
     const v = visita();
