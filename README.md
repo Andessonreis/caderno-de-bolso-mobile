@@ -7,7 +7,7 @@ App Android que deixa o agricultor agroecológico anotar a roça na hora, com po
   <img src="docs/telas/10-anotar-3-atividade.png" alt="Anotar: escolha da atividade" width="200">
   <img src="docs/telas/18-resumos.png" alt="Resumo da semana na ordem do caderno" width="200">
   <img src="docs/telas/20-visita.png" alt="Lista de apoio para a visita de pares" width="200">
-  <img src="docs/telas/26-copia-na-internet-ligar-outro-celular.png" alt="Cópia na internet: código para ligar outro celular" width="200">
+  <img src="docs/telas/27-copia-na-internet-codigo-para-ligar.png" alt="Cópia na internet: código para ligar outro celular" width="200">
 </p>
 
 ## O problema
@@ -61,6 +61,119 @@ O Caderno de Bolso é um ajudante do caderno de campo, não um substituto. O pro
 - **Ligar outro celular:** um QR (ou código em texto) leva o mesmo caderno para outro aparelho, e o **cartão de recuperação** impresso guarda esse código em casa. Também dá para parar de guardar na internet ou apagar a cópia de lá.
 
 O passo a passo de cada tela, com o mapa de navegação e o fluxo principal em diagrama, está em [docs/fluxos.md](docs/fluxos.md). Todas as telas, numeradas na ordem de uso, estão em [docs/telas](docs/telas/README.md).
+
+<!-- telas:inicio -->
+## Telas
+
+As 31 telas do app, na ordem de uso, capturadas num celular Android. Toque numa imagem para ampliar. O índice com como chegar em cada tela e o que ela faz está em [docs/telas](docs/telas/README.md).
+
+### Primeiro uso
+
+Aparece só na primeira vez que o app é aberto.
+
+<table>
+  <tr>
+    <td align="center" valign="top"><a href="docs/telas/01-boas-vindas.png"><img src="docs/telas/01-boas-vindas.png" alt="Boas-vindas" width="170"></a><br><sub><b>01</b> · Boas-vindas</sub></td>
+    <td align="center" valign="top"><a href="docs/telas/02-cadastro-nome.png"><img src="docs/telas/02-cadastro-nome.png" alt="Passo 1: Quem é você?" width="170"></a><br><sub><b>02</b> · Passo 1: Quem é você?</sub></td>
+    <td align="center" valign="top"><a href="docs/telas/03-cadastro-certificacao.png"><img src="docs/telas/03-cadastro-certificacao.png" alt="Passo 2: Sua certificação" width="170"></a><br><sub><b>03</b> · Passo 2: Sua certificação</sub></td>
+    <td align="center" valign="top"><a href="docs/telas/04-cadastro-roca.png"><img src="docs/telas/04-cadastro-roca.png" alt="Passo 3: Sua roça" width="170"></a><br><sub><b>04</b> · Passo 3: Sua roça</sub></td>
+  </tr>
+  <tr>
+    <td align="center" valign="top"><a href="docs/telas/05-cadastro-copia-internet.png"><img src="docs/telas/05-cadastro-copia-internet.png" alt="Guardar uma cópia na internet?" width="170"></a><br><sub><b>05</b> · Guardar uma cópia na internet?</sub></td>
+  </tr>
+</table>
+
+### Início
+
+Primeira aba. É onde o app abre no dia a dia.
+
+<table>
+  <tr>
+    <td align="center" valign="top"><a href="docs/telas/06-inicio.png"><img src="docs/telas/06-inicio.png" alt="Início" width="170"></a><br><sub><b>06</b> · Início</sub></td>
+    <td align="center" valign="top"><a href="docs/telas/07-inicio-copia-ligada.png"><img src="docs/telas/07-inicio-copia-ligada.png" alt="Início com a cópia ligada" width="170"></a><br><sub><b>07</b> · Início com a cópia ligada</sub></td>
+  </tr>
+</table>
+
+### Anotar
+
+Passo a passo de uma anotação, uma escolha por tela. Abre pelo botão Anotar da barra de baixo.
+
+<table>
+  <tr>
+    <td align="center" valign="top"><a href="docs/telas/08-anotar-1-area.png"><img src="docs/telas/08-anotar-1-area.png" alt="Onde foi?" width="170"></a><br><sub><b>08</b> · Onde foi?</sub></td>
+    <td align="center" valign="top"><a href="docs/telas/09-anotar-2-cultura.png"><img src="docs/telas/09-anotar-2-cultura.png" alt="Qual cultura?" width="170"></a><br><sub><b>09</b> · Qual cultura?</sub></td>
+    <td align="center" valign="top"><a href="docs/telas/10-anotar-3-atividade.png"><img src="docs/telas/10-anotar-3-atividade.png" alt="O que você fez?" width="170"></a><br><sub><b>10</b> · O que você fez?</sub></td>
+    <td align="center" valign="top"><a href="docs/telas/11-anotar-4-origem-semente.png"><img src="docs/telas/11-anotar-4-origem-semente.png" alt="De onde veio a semente?" width="170"></a><br><sub><b>11</b> · De onde veio a semente?</sub></td>
+  </tr>
+  <tr>
+    <td align="center" valign="top"><a href="docs/telas/12-anotar-5-quantidade.png"><img src="docs/telas/12-anotar-5-quantidade.png" alt="Quanto?" width="170"></a><br><sub><b>12</b> · Quanto?</sub></td>
+    <td align="center" valign="top"><a href="docs/telas/13-anotar-6-revisao.png"><img src="docs/telas/13-anotar-6-revisao.png" alt="Confira e salve" width="170"></a><br><sub><b>13</b> · Confira e salve</sub></td>
+    <td align="center" valign="top"><a href="docs/telas/14-anotar-7-revisao-recado-e-foto.png"><img src="docs/telas/14-anotar-7-revisao-recado-e-foto.png" alt="Confira e salve: recado de voz e foto" width="170"></a><br><sub><b>14</b> · Confira e salve: recado de voz e foto</sub></td>
+    <td align="center" valign="top"><a href="docs/telas/15-anotar-8-anotado.png"><img src="docs/telas/15-anotar-8-anotado.png" alt="Anotado!" width="170"></a><br><sub><b>15</b> · Anotado!</sub></td>
+  </tr>
+</table>
+
+### Caderno, resumos e colheita
+
+O que o app devolve a partir das anotações.
+
+<table>
+  <tr>
+    <td align="center" valign="top"><a href="docs/telas/16-caderno.png"><img src="docs/telas/16-caderno.png" alt="Caderno" width="170"></a><br><sub><b>16</b> · Caderno</sub></td>
+    <td align="center" valign="top"><a href="docs/telas/17-caderno-filtros.png"><img src="docs/telas/17-caderno-filtros.png" alt="Filtros do caderno" width="170"></a><br><sub><b>17</b> · Filtros do caderno</sub></td>
+    <td align="center" valign="top"><a href="docs/telas/18-resumos.png"><img src="docs/telas/18-resumos.png" alt="Resumos" width="170"></a><br><sub><b>18</b> · Resumos</sub></td>
+    <td align="center" valign="top"><a href="docs/telas/19-colheita-venda.png"><img src="docs/telas/19-colheita-venda.png" alt="Colheita e venda" width="170"></a><br><sub><b>19</b> · Colheita e venda</sub></td>
+  </tr>
+</table>
+
+### Visita de pares
+
+Apoio para a visita. Não substitui o roteiro do grupo.
+
+<table>
+  <tr>
+    <td align="center" valign="top"><a href="docs/telas/20-visita.png"><img src="docs/telas/20-visita.png" alt="Pronto para a visita" width="170"></a><br><sub><b>20</b> · Pronto para a visita</sub></td>
+  </tr>
+</table>
+
+### Mais
+
+Última aba. Reúne cadastro, ficha e cópias.
+
+<table>
+  <tr>
+    <td align="center" valign="top"><a href="docs/telas/21-mais.png"><img src="docs/telas/21-mais.png" alt="Mais" width="170"></a><br><sub><b>21</b> · Mais</sub></td>
+    <td align="center" valign="top"><a href="docs/telas/22-meus-dados.png"><img src="docs/telas/22-meus-dados.png" alt="Meus dados" width="170"></a><br><sub><b>22</b> · Meus dados</sub></td>
+    <td align="center" valign="top"><a href="docs/telas/23-areas-e-culturas.png"><img src="docs/telas/23-areas-e-culturas.png" alt="Áreas e culturas" width="170"></a><br><sub><b>23</b> · Áreas e culturas</sub></td>
+    <td align="center" valign="top"><a href="docs/telas/24-minha-ficha-qr.png"><img src="docs/telas/24-minha-ficha-qr.png" alt="Minha ficha (QR)" width="170"></a><br><sub><b>24</b> · Minha ficha (QR)</sub></td>
+  </tr>
+  <tr>
+    <td align="center" valign="top"><a href="docs/telas/25-copia-de-seguranca.png"><img src="docs/telas/25-copia-de-seguranca.png" alt="Cópia de segurança" width="170"></a><br><sub><b>25</b> · Cópia de segurança</sub></td>
+    <td align="center" valign="top"><a href="docs/telas/26-copia-na-internet.png"><img src="docs/telas/26-copia-na-internet.png" alt="Cópia na internet" width="170"></a><br><sub><b>26</b> · Cópia na internet</sub></td>
+    <td align="center" valign="top"><a href="docs/telas/27-copia-na-internet-codigo-para-ligar.png"><img src="docs/telas/27-copia-na-internet-codigo-para-ligar.png" alt="Código para ligar outro celular" width="170"></a><br><sub><b>27</b> · Código para ligar outro celular</sub></td>
+    <td align="center" valign="top"><a href="docs/telas/28-sobre.png"><img src="docs/telas/28-sobre.png" alt="Sobre o app" width="170"></a><br><sub><b>28</b> · Sobre o app</sub></td>
+  </tr>
+</table>
+
+### Ligar um celular a um caderno que já existe
+
+Para celular novo ou segundo aparelho.
+
+<table>
+  <tr>
+    <td align="center" valign="top"><a href="docs/telas/29-ja-tenho-um-caderno.png"><img src="docs/telas/29-ja-tenho-um-caderno.png" alt="Já tenho um caderno" width="170"></a><br><sub><b>29</b> · Já tenho um caderno</sub></td>
+    <td align="center" valign="top"><a href="docs/telas/30-ja-tenho-um-caderno-confirmar.png"><img src="docs/telas/30-ja-tenho-um-caderno-confirmar.png" alt="Ligar este celular?" width="170"></a><br><sub><b>30</b> · Ligar este celular?</sub></td>
+  </tr>
+</table>
+
+### Outras
+
+<table>
+  <tr>
+    <td align="center" valign="top"><a href="docs/telas/31-pagina-nao-encontrada.png"><img src="docs/telas/31-pagina-nao-encontrada.png" alt="Página não encontrada" width="170"></a><br><sub><b>31</b> · Página não encontrada</sub></td>
+  </tr>
+</table>
+<!-- telas:fim -->
 
 ## Decisões de engenharia
 

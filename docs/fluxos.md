@@ -2,7 +2,7 @@
 
 Este documento descreve, tela por tela, o que o produtor vê, o que pode fazer e para onde cada ação leva. Ele foi escrito a partir das rotas do app (`src/app`). Se algum ponto divergir do app, vale o app.
 
-As capturas estão em [`docs/telas/`](telas/README.md), numeradas na ordem de uso e com um índice que diz como chegar em cada tela. Foram feitas com o app renderizado em tamanho de celular (390 × 844) e um produtor fictício. As telas "Cópia na internet" e "Já tenho um caderno" só existem no app instalado; as capturas delas usam um servidor simulado, e o código que aparece nelas não abre nenhum caderno.
+As capturas estão em [`docs/telas/`](telas/README.md), numeradas na ordem de uso e com um índice que diz como chegar em cada tela. Foram tiradas num celular Android com o app instalado, usando produtores fictícios: os dados de exemplo do próprio app e um cadastro de teste.
 
 ## Mapa geral de navegação
 
@@ -349,9 +349,9 @@ Funciona sem internet. O arquivo pode ser guardado no WhatsApp, no e-mail ou num
 
 ## Cópia na internet
 
-![Cópia na internet: ligar outro celular](telas/26-copia-na-internet-ligar-outro-celular.png)
+![Cópia na internet](telas/26-copia-na-internet.png)
 
-![Cópia na internet: cartão de recuperação, parar e apagar](telas/27-copia-na-internet-cartao-e-apagar.png)
+![Cópia na internet: código para ligar outro celular](telas/27-copia-na-internet-codigo-para-ligar.png)
 
 Só no app do celular. Você chega aqui por Mais, pelo indicador do Início ou de Mais, ou pela pergunta do primeiro uso.
 
