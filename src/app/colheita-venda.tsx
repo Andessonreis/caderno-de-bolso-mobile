@@ -8,7 +8,7 @@ import { PeriodNav } from '@/components/PeriodNav';
 import { Screen } from '@/components/Screen';
 import { Segmented } from '@/components/Segmented';
 import { capitalize, unitText } from '@/lib/catalog';
-import { type DateRange, monthRange, shiftRange, today as todayISO, weekRange } from '@/lib/dates';
+import { type DateRange, formatShortDate, monthRange, shiftRange, today as todayISO, weekRange } from '@/lib/dates';
 import { formatMoney, formatNumber } from '@/lib/format';
 import { barRatio, harvestByCrop } from '@/lib/harvest';
 import type { Unit } from '@/lib/types';
@@ -47,7 +47,10 @@ export default function ColheitaVenda() {
   const totalReceived = data.reduce((s, c) => s + c.received, 0);
 
   return (
-    <Screen back title="Colheita e venda" subtitle="Só soma o que está na mesma unidade. Quilo não se mistura com caixa.">
+    <Screen
+      back
+      title="Colheita e venda"
+      subtitle="Só soma o que está na mesma unidade. Quilo não se mistura com caixa. O que sobrou conta tudo o que foi anotado até o fim do período.">
       <Segmented
         label="Período"
         options={[
@@ -94,11 +97,13 @@ export default function ColheitaVenda() {
                   <View key={u.unit} style={styles.unitBlock}>
                     <Bar label="Colheu" value={u.harvested} max={max} color={colors.leaf} text={qty(u.harvested, u.unit)} />
                     <Bar label="Vendeu" value={u.sold} max={max} color={colors.clay} text={qty(u.sold, u.unit)} />
-                    {u.balance !== null ? (
+                    {u.stock !== null && u.oversold ? (
+                      <AppText variant="bodyStrong" color={colors.clay}>
+                        Somando tudo até {formatShortDate(range.end)}, a venda passou a colheita em {qty(-u.stock, u.unit)}. Confira se falta anotar alguma colheita.
+                      </AppText>
+                    ) : u.stock !== null ? (
                       <AppText variant="bodyStrong">
-                        {u.balance >= 0
-                          ? `Sobrou: ${qty(u.balance, u.unit)}`
-                          : `Vendeu ${qty(-u.balance, u.unit)} a mais do que anotou de colheita`}
+                        Sobrou até {formatShortDate(range.end)}: {qty(u.stock, u.unit)}
                       </AppText>
                     ) : (
                       <AppText variant="small" color={colors.inkMuted}>
@@ -108,7 +113,7 @@ export default function ColheitaVenda() {
                   </View>
                 );
               })}
-              <AppText variant="bodyStrong">Recebido: {formatMoney(c.received)}</AppText>
+              <AppText variant="bodyStrong">Recebeu: {formatMoney(c.received)}</AppText>
               {c.salesWithoutValue ? (
                 <AppText variant="small" color={colors.inkMuted}>
                   {c.salesWithoutValue === 1 ? '1 venda ficou' : `${c.salesWithoutValue} vendas ficaram`} sem valor anotado.
