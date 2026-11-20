@@ -211,8 +211,7 @@ function parseBackupUnsafe(
   const lastVisitDate =
     typeof raw.lastVisitDate === 'string' && parseISODate(raw.lastVisitDate) ? raw.lastVisitDate : undefined;
 
-  if (raw.peerVisits !== undefined && !Array.isArray(raw.peerVisits))
-    return { ok: false, error: 'As visitas a outros produtores no arquivo estão com problema.' };
+  // Campo de visitas estragado (não é lista) é tratado como arquivo sem visitas.
   const peerVisits = Array.isArray(raw.peerVisits)
     ? raw.peerVisits.map((v) => normalizarVisita(v, exportedAt)).filter((v): v is Visita => v !== null)
     : undefined;

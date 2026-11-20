@@ -116,12 +116,16 @@ describe('cópia de segurança com visitas', () => {
     expect(useApp.getState().pendingChanges.some((c) => c.entity === 'visita_par')).toBe(true);
   });
 
-  it('limpa visitas estragadas e recusa lista que não é lista', () => {
+  it('limpa visitas estragadas e ignora campo de visitas que não é lista', () => {
     const base = exportSnapshot({ ...useApp.getState(), peerVisits: [] }, T1);
     const r = parseBackup(JSON.stringify({ ...base, peerVisits: [null, { semId: true }, { ...visita(), tipo: 'x' }] }));
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.data.peerVisits?.map((v) => [v.id, v.tipo])).toEqual([[ID, '']]);
-    expect(parseBackup(JSON.stringify({ ...base, peerVisits: 'nada' })).ok).toBe(false);
+    for (const estragado of ['nada', 5, { a: 1 }, null]) {
+      const ruim = parseBackup(JSON.stringify({ ...base, peerVisits: estragado }));
+      expect(ruim.ok).toBe(true);
+      if (ruim.ok) expect(ruim.data.peerVisits).toBeUndefined();
+    }
   });
 });
 
