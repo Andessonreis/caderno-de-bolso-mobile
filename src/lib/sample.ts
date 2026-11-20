@@ -79,3 +79,49 @@ export function buildSampleData(today: ISODate): SampleData {
     entries,
   };
 }
+
+export interface SampleRemovalInput {
+  profile: Profile | null;
+  areas: Area[];
+  crops: string[];
+  entries: Entry[];
+  lastAreaId?: string;
+  cropUsage: Record<string, number>;
+}
+
+export interface SampleRemoval {
+  state: SampleRemovalInput;
+  /** Fotos das anotações de exemplo apagadas (para tirar do aparelho). */
+  removedPhotos: string[];
+  /** O perfil também era de exemplo: o app volta para as boas-vindas. */
+  wasSampleProfile: boolean;
+}
+
+/**
+ * Tira só o que veio dos dados de exemplo. Anotações reais ficam, mesmo que
+ * tenham sido feitas numa área de exemplo; nesse caso a área fica também e
+ * deixa de ser marcada como exemplo.
+ */
+export function removeSampleData(st: SampleRemovalInput): SampleRemoval {
+  const wasSampleProfile = Boolean(st.profile?.exemplo);
+  const kept = st.entries.filter((e) => !e.exemplo);
+  const removedPhotos = st.entries.filter((e) => e.exemplo && e.photo).map((e) => e.photo as string);
+  const usedAreaIds = new Set(kept.map((e) => e.areaId));
+  const areas = st.areas
+    .filter((a) => !a.exemplo || usedAreaIds.has(a.id))
+    .map((a) => (a.exemplo ? { id: a.id, name: a.name } : a));
+  const areaIds = new Set(areas.map((a) => a.id));
+  const crops = wasSampleProfile ? [...new Set(kept.map((e) => e.crop))] : st.crops;
+  return {
+    wasSampleProfile,
+    removedPhotos,
+    state: {
+      profile: wasSampleProfile ? null : st.profile,
+      areas,
+      crops,
+      entries: kept,
+      lastAreaId: st.lastAreaId && areaIds.has(st.lastAreaId) ? st.lastAreaId : undefined,
+      cropUsage: wasSampleProfile ? {} : st.cropUsage,
+    },
+  };
+}

@@ -8,6 +8,7 @@ import { ChoiceTile } from '@/components/ChoiceTile';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import type { IconName } from '@/components/Icon';
 import { Screen } from '@/components/Screen';
+import { deletePhotoFile } from '@/lib/device';
 import { Segmented } from '@/components/Segmented';
 import { useApp } from '@/store';
 import { FONT_CHOICES, colors, radius, space } from '@/theme';
@@ -37,8 +38,9 @@ export default function Mais() {
 
   const doRemoveSample = () => {
     setConfirm(false);
-    const wasProfile = removeSample();
-    if (wasProfile) router.replace('/boas-vindas');
+    const { wasSampleProfile, removedPhotos } = removeSample();
+    removedPhotos.forEach(deletePhotoFile);
+    if (wasSampleProfile) router.replace('/boas-vindas');
   };
 
   return (
@@ -77,7 +79,7 @@ export default function Mais() {
       <ConfirmDialog
         visible={confirm}
         title="Apagar dados de exemplo?"
-        message="Saem o produtor fictício, as áreas e as anotações de exemplo. O que você anotou nas suas próprias áreas continua."
+        message="Saem o produtor fictício e as anotações de exemplo. O que você mesmo anotou continua, mesmo que tenha sido numa área de exemplo."
         confirmLabel="Sim, apagar exemplo"
         danger
         onConfirm={doRemoveSample}
