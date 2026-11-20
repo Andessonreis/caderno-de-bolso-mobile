@@ -10,7 +10,7 @@ import type { SyncConfig } from '@/store';
 
 import { SyncError, type SyncApi } from './api';
 import type { Credentials } from './links';
-import { buildOutgoing, mergeRemote, type SyncedState } from './records';
+import { buildOutgoing, mergeRemote, recordTooBig, type SyncedState, toOutgoing } from './records';
 
 export type EngineState = SyncedState & { sync: SyncConfig };
 
@@ -54,10 +54,18 @@ export function ownMediaPaths(st: { entries: Entry[]; photos: NotebookPhoto[] })
   return mediaPathsOf({ entries: st.entries.filter((e) => !e.exemplo), photos: st.photos });
 }
 
-/** Quantos itens ainda faltam ir para a internet (registros + arquivos). */
+/**
+ * Quantos itens ainda faltam ir para a internet (registros + arquivos). Registro
+ * grande demais não conta: ele não vai enquanto não diminuir, e a tela da visita
+ * avisa disso.
+ */
 export function pendingCount(st: EngineState, exists: (relative: string) => boolean): number {
   const files = ownMediaPaths(st).filter((p) => !st.sync.enviados[p] && exists(p)).length;
-  return st.pendingChanges.length + files;
+  const records = st.pendingChanges.filter((c) => {
+    const r = toOutgoing(c, st);
+    return !r || !recordTooBig(r);
+  }).length;
+  return records + files;
 }
 
 async function ensureAccount(deps: EngineDeps): Promise<Credentials> {

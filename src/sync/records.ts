@@ -5,7 +5,7 @@ import { type Change, type EntityKind, SINGLETON_IDS } from '@/data/repository';
 import { isArea, isEntry, isNotebookPhoto, isProfile } from '@/lib/backup';
 import { MANUAL_CHECKS } from '@/lib/catalog';
 import { parseISODate } from '@/lib/dates';
-import { type Visita, normalizarVisita } from '@/lib/roteiro';
+import { type Visita, bytesUtf8, normalizarVisita } from '@/lib/roteiro';
 import type { Area, Entry, ISODate, ManualCheckId, NotebookPhoto, Profile } from '@/lib/types';
 
 /** Registro como o servidor recebe. */
@@ -42,8 +42,8 @@ export interface SyncedState {
   pendingChanges: Change[];
 }
 
-/** Limite do servidor por registro é 32 KB; deixamos folga. */
-export const MAX_RECORD_CHARS = 30_000;
+/** Limite do servidor por registro é 32.768 bytes; deixamos folga. */
+export const MAX_RECORD_BYTES = 30_000;
 /** Limite do servidor por chamada. */
 export const MAX_BATCH = 200;
 
@@ -101,17 +101,38 @@ export function toOutgoing(change: Change, st: SyncedState): OutgoingRecord | nu
     case 'visita_par': {
       const v = st.peerVisits.find((x) => x.id === change.recordId);
       if (!v) return null;
-      return { ...base(v.updatedAt, v.deletedAt), dados: without(v, ['id', 'updatedAt', 'deletedAt']) };
+      // Visita apagada sobe sem os dados: o que foi anotado sobre outro produtor não fica no servidor.
+      return { ...base(v.updatedAt, v.deletedAt), dados: v.deletedAt ? {} : visitaDados(v) };
     }
   }
+}
+
+function visitaDados(v: Visita): Record<string, unknown> {
+  return without(v, ['id', 'updatedAt', 'deletedAt']);
+}
+
+/** Registro maior do que o servidor aceita (contado em bytes, como o servidor conta). */
+export function recordTooBig(r: OutgoingRecord): boolean {
+  return bytesUtf8(JSON.stringify(r)) > MAX_RECORD_BYTES;
+}
+
+/** A visita não cabe num registro da cópia na internet e fica só no celular. */
+export function visitaGrandeDemais(v: Visita): boolean {
+  if (v.deletedAt) return false;
+  return recordTooBig({ tipo: 'visita_par', id: v.id, dados: visitaDados(v), atualizado_em: v.updatedAt, apagado_em: null });
 }
 
 export interface OutgoingBatch {
   records: OutgoingRecord[];
   /** Ids das alterações cobertas por este lote (saem da fila quando o servidor confirmar). */
   changeIds: string[];
-  /** Alterações que não precisam ir (registro sumiu, é de exemplo ou grande demais). */
+  /** Alterações que não precisam ir (registro sumiu ou é de exemplo). */
   dropped: string[];
+  /**
+   * Alterações de registros maiores do que o servidor aceita. Ficam na fila,
+   * fora do lote, sem travar o resto: vão quando o registro diminuir.
+   */
+  tooBig: string[];
 }
 
 /** Separa até `limit` alterações da fila em registros prontos para enviar. */
@@ -119,17 +140,22 @@ export function buildOutgoing(st: SyncedState, limit = MAX_BATCH): OutgoingBatch
   const records: OutgoingRecord[] = [];
   const changeIds: string[] = [];
   const dropped: string[] = [];
+  const tooBig: string[] = [];
   for (const c of st.pendingChanges) {
     if (records.length >= limit) break;
     const r = toOutgoing(c, st);
-    if (!r || JSON.stringify(r).length > MAX_RECORD_CHARS) {
+    if (!r) {
       dropped.push(c.id);
+      continue;
+    }
+    if (recordTooBig(r)) {
+      tooBig.push(c.id);
       continue;
     }
     records.push(r);
     changeIds.push(c.id);
   }
-  return { records, changeIds, dropped };
+  return { records, changeIds, dropped, tooBig };
 }
 
 function newer(remote: string, local: string | undefined): boolean {
@@ -225,7 +251,9 @@ export function mergeRemote(st: SyncedState, remote: RemoteRecord[]): MergeResul
         const candidate = normalizarVisita({ ...d, id: r.id });
         if (!candidate || candidate.id !== r.id) break;
         const { deletedAt: _deletedAt, ...rest } = candidate;
-        next = { ...next, peerVisits: upsertById(next.peerVisits, { ...rest, ...meta(r) }) };
+        // Apagamento chega sem os dados: o que já estava aqui fica, só marcado como apagado.
+        const dados = r.apagado_em && local ? without(local, ['deletedAt']) : rest;
+        next = { ...next, peerVisits: upsertById(next.peerVisits, { ...dados, ...meta(r) }) };
         break;
       }
       default:

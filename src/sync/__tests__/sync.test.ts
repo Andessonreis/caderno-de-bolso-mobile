@@ -152,12 +152,19 @@ describe('registros enviados', () => {
     expect(b.dropped).toEqual([pendingChanges[0].id]);
   });
 
-  it('registro grande demais não vai (e sai da fila)', () => {
-    const big = entry({ note: 'x'.repeat(40_000) });
+  it('registro grande demais fica na fila, fora do lote, sem travar os outros', () => {
+    // 12.000 "…" são 12.000 caracteres, mas 36.000 bytes: passa do limite do servidor.
+    const big = entry({ note: '…'.repeat(12_000) });
+    const small = entry();
     const c = change('anotacao', big.id);
-    const b = buildOutgoing(emptyState({ entries: [big], pendingChanges: [c] }));
-    expect(b.records).toEqual([]);
-    expect(b.dropped).toEqual([c.id]);
+    const ok = change('anotacao', small.id);
+    const st = emptyState({ entries: [big, small], pendingChanges: [c, ok] });
+    const b = buildOutgoing(st);
+    expect(b.records.map((r) => r.id)).toEqual([small.id]);
+    expect(b.changeIds).toEqual([ok.id]);
+    expect(b.dropped).toEqual([]);
+    expect(b.tooBig).toEqual([c.id]);
+    expect(pendingCount(st, () => false)).toBe(1);
   });
 });
 
@@ -239,6 +246,10 @@ class FakeServer {
       this.calls += 1;
       if (this.offline) throw new SyncError('rede', 'sem conexão');
       if (c.chave !== this.chave) throw new SyncError('chave', 'chave_nao_confere');
+      // Como o real: um registro acima de 32.768 bytes derruba o lote inteiro.
+      if (mudancas.some((m) => Buffer.byteLength(JSON.stringify(m), 'utf8') > 32_768)) {
+        throw new SyncError('servidor', 'registro_grande_demais');
+      }
       for (const m of mudancas) {
         const key = `${m.tipo}:${m.id}`;
         const cur = this.rows.get(key);
@@ -375,6 +386,30 @@ describe('motor de sincronização', () => {
     await expect(runSync(a.deps)).rejects.toMatchObject({ kind: 'chave' });
     expect(a.state.entries).toEqual([e]);
     expect(a.state.pendingChanges).toHaveLength(1);
+  });
+
+  it('registro grande demais não trava a rodada nem a fila e fica guardado para depois', async () => {
+    const server = new FakeServer();
+    const big = entry({ id: 'grande', note: '🌽'.repeat(9_000) });
+    const small = entry({ id: 'pequena' });
+    const a = device(server, {
+      entries: [big, small],
+      pendingChanges: [change('anotacao', 'grande'), change('anotacao', 'pequena')],
+    });
+    const out = await runSync(a.deps);
+    expect(out.sent).toBe(1);
+    expect(server.calls).toBe(1);
+    expect([...server.rows.keys()]).toEqual(['anotacao:pequena']);
+    expect(a.state.pendingChanges.map((c) => c.recordId)).toEqual(['grande']);
+    expect(a.state.entries).toHaveLength(2);
+
+    // Outra rodada não entra em laço; quando o texto diminui, vai.
+    await runSync(a.deps);
+    expect(server.calls).toBe(2);
+    a.edit((s) => ({ entries: s.entries.map((e) => (e.id === 'grande' ? { ...e, note: 'curta', updatedAt: T1 } : e)) }));
+    await runSync(a.deps);
+    expect(server.rows.has('anotacao:grande')).toBe(true);
+    expect(a.state.pendingChanges).toEqual([]);
   });
 
   it('conta o que falta enviar', () => {

@@ -1,9 +1,16 @@
-import { MAX_RECORD_CHARS, buildOutgoing, mergeRemote, toOutgoing, type SyncedState } from '@/sync/records';
+import {
+  MAX_RECORD_BYTES,
+  buildOutgoing,
+  mergeRemote,
+  toOutgoing,
+  type SyncedState,
+  visitaGrandeDemais,
+} from '@/sync/records';
 import { exportSnapshot, useApp } from '@/store';
 
 import { parseBackup } from '../backup';
 import { migratePersisted } from '../migrate';
-import { ITENS, LIMITES_VISITA, novaVisita, type Visita } from '../roteiro';
+import { ITENS, LIMITES_VISITA, bytesUtf8, normalizarVisita, novaVisita, type Visita } from '../roteiro';
 
 const T0 = '2026-11-01T10:00:00.000Z';
 const T1 = '2026-11-02T10:00:00.000Z';
@@ -20,9 +27,9 @@ function estado(p: Partial<SyncedState> = {}): SyncedState {
   return { ...vazio, pendingChanges: [], ...p };
 }
 
-/** Visita com todos os textos no limite, com acentos e quebras de linha. */
-function visitaNoLimite(): Visita {
-  const longo = (n: number) => 'ção\n"'.repeat(Math.ceil(n / 5)).slice(0, n);
+/** Visita com todos os textos no limite em letras, feitos de `trecho` repetido. */
+function visitaNoLimite(trecho = 'ção\n"'): Visita {
+  const longo = (n: number) => Array.from(trecho.repeat(n)).slice(0, n).join('');
   const v = visita({
     produtor: { nome: longo(LIMITES_VISITA.nome), municipio: longo(LIMITES_VISITA.municipio), culturas: [] },
     visitantes: longo(LIMITES_VISITA.visitantes),
@@ -116,8 +123,44 @@ describe('visitas na cópia na internet', () => {
     const b = buildOutgoing(estado({ peerVisits: [v], pendingChanges: [MUDANCA] }));
     expect(b.records).toHaveLength(1);
     const json = JSON.stringify(b.records[0]);
-    expect(json.length).toBeLessThan(MAX_RECORD_CHARS);
-    expect(Buffer.byteLength(json, 'utf8')).toBeLessThan(32_768);
+    expect(Buffer.byteLength(json, 'utf8')).toBeLessThan(MAX_RECORD_BYTES);
+  });
+
+  it('a maior visita possível cabe mesmo cheia de "…", "—" e emoji', () => {
+    for (const trecho of ['…', '—', '🌽', '🫘—…"\n', '👩🏽‍🌾']) {
+      const v = normalizarVisita(visitaNoLimite(trecho), T0)!;
+      const ids = Array.from({ length: LIMITES_VISITA.naoConformidades }, (_, i) => `${'🌽'.repeat(60)}${i}`);
+      const crua = { ...v, id: ID, naoConformidades: v.naoConformidades.map((n, i) => ({ ...n, id: ids[i] })) };
+      const maior = normalizarVisita(crua, T0)!;
+      expect(visitaGrandeDemais(maior)).toBe(false);
+      const b = buildOutgoing(estado({ peerVisits: [maior], pendingChanges: [MUDANCA] }));
+      expect(b.records).toHaveLength(1);
+      const bytes = Buffer.byteLength(JSON.stringify(b.records[0]), 'utf8');
+      expect(bytesUtf8(JSON.stringify(b.records[0]))).toBe(bytes);
+      expect(bytes).toBeLessThan(MAX_RECORD_BYTES);
+    }
+  });
+
+  it('visita que mesmo assim passar do limite fica na fila e é apontada como grande demais', () => {
+    const v = visita({ observacoes: '…'.repeat(11_000) });
+    expect(visitaGrandeDemais(v)).toBe(true);
+    const b = buildOutgoing(estado({ peerVisits: [v], pendingChanges: [MUDANCA] }));
+    expect(b.records).toEqual([]);
+    expect(b.dropped).toEqual([]);
+    expect(b.tooBig).toEqual([MUDANCA.id]);
+    expect(visitaGrandeDemais({ ...v, deletedAt: T1 })).toBe(false);
+  });
+
+  it('visita apagada sobe sem os dados do produtor visitado', () => {
+    const v = visita({ observacoes: 'Nada a declarar', deletedAt: T1, updatedAt: T1 });
+    const out = toOutgoing({ ...MUDANCA, op: 'delete' }, estado({ peerVisits: [v] }));
+    expect(out).toEqual({ tipo: 'visita_par', id: ID, dados: {}, atualizado_em: T1, apagado_em: T1 });
+
+    // No outro celular, o apagamento sem dados só marca a visita que já estava lá.
+    const outro = mergeRemote(estado({ peerVisits: [visita()] }), [{ ...out!, seq: 2 }]);
+    expect(outro.state.peerVisits[0]).toMatchObject({ produtor: { nome: 'Maria' }, deletedAt: T1, updatedAt: T1 });
+    const novo = mergeRemote(estado(), [{ ...out!, seq: 2 }]);
+    expect(novo.state.peerVisits[0]).toMatchObject({ id: ID, deletedAt: T1 });
   });
 
   it('ida e volta entre dois celulares, com apagamento e a mais recente vencendo', () => {
