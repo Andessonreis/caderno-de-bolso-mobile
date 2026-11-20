@@ -2,7 +2,7 @@
   "expo": {
     "name": "Caderno de Bolso",
     "slug": "caderno-de-bolso",
-    "version": "1.0.1",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "cadernodebolso",
@@ -16,7 +16,7 @@
     },
     "android": {
       "package": "br.edu.ifba.irece.cadernodebolso",
-      "versionCode": 2,
+      "versionCode": 3,
       "adaptiveIcon": {
         "backgroundColor": "#2F5D34",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
