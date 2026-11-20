@@ -14,12 +14,12 @@ const ITEMS: { icon: IconName; title: string; text: string }[] = [
   {
     icon: 'cellphone-lock',
     title: 'Seus dados ficam no seu celular',
-    text: 'Não tem conta, senha nem nuvem. Nada sai do aparelho, a não ser quando você mesmo compartilha um PDF, o link da ficha ou o arquivo de cópia.',
+    text: 'Não precisa de e-mail nem senha. Se você quiser, o app guarda uma cópia na internet para não perder nada se o celular quebrar. Fora isso, nada sai do aparelho, a não ser quando você mesmo compartilha um PDF, o link da ficha ou o arquivo de cópia.',
   },
   {
     icon: 'wifi-off',
     title: 'Funciona sem internet',
-    text: 'Anotar, ver resumos, fotografar o caderno e gerar PDFs funcionam sem sinal.',
+    text: 'Anotar, ver resumos, fotografar o caderno e gerar PDFs funcionam sem sinal. A cópia na internet espera o sinal voltar e envia sozinha.',
   },
   {
     icon: 'calculator-variant-outline',
