@@ -32,14 +32,25 @@ export type SaleDestination = 'feira' | 'cooperativa' | 'direta' | 'instituciona
 /** O que foi comprado numa anotação de "Compra de semente/insumo". */
 export type PurchaseKind = 'semente' | 'insumo';
 
-export interface Area {
+/**
+ * Campos de controle de todo registro sincronizável: id estável (UUID), data da
+ * última alteração e, quando apagado, a data em que foi apagado (o registro
+ * continua guardado para que a exclusão possa ser enviada a outros aparelhos).
+ */
+export interface SyncMeta {
   id: string;
+  /** ISO 8601 */
+  updatedAt: string;
+  /** ISO 8601. Presente = registro apagado. */
+  deletedAt?: string;
+}
+
+export interface Area extends SyncMeta {
   name: string;
   exemplo?: boolean;
 }
 
-export interface Entry {
-  id: string;
+export interface Entry extends SyncMeta {
   date: ISODate;
   areaId: string;
   crop: string;
@@ -60,6 +71,10 @@ export interface Entry {
   note?: string;
   /** Foto da anotação: caminho relativo à pasta de fotos (ex.: "anotacoes/1732.jpg"). */
   photo?: string;
+  /** Recado de voz: caminho relativo (ex.: "audios/1732.m4a"). */
+  audio?: string;
+  /** Duração do recado, em segundos. */
+  audioSeconds?: number;
   /** Já foi passada a limpo para o caderno de papel. */
   copied: boolean;
   createdAt: string;
@@ -76,11 +91,12 @@ export interface Profile {
   nationalRegistry?: string;
   traceCode?: string;
   exemplo?: boolean;
+  /** ISO 8601 da última alteração do perfil. */
+  updatedAt?: string;
 }
 
 /** Foto de uma página do caderno de papel (cópia de segurança). */
-export interface NotebookPhoto {
-  id: string;
+export interface NotebookPhoto extends SyncMeta {
   /** Caminho relativo à pasta de fotos (ex.: "caderno/1732.jpg"). */
   file: string;
   date: ISODate;

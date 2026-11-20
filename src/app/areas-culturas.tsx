@@ -7,13 +7,13 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { CropPicker } from '@/components/CropPicker';
 import { Screen } from '@/components/Screen';
 import type { Area } from '@/lib/types';
-import { useApp } from '@/store';
+import { useApp, useAreas, useEntries } from '@/store';
 import { colors, space } from '@/theme';
 
 export default function AreasCulturas() {
-  const areas = useApp((s) => s.areas);
+  const areas = useAreas();
   const crops = useApp((s) => s.crops);
-  const entries = useApp((s) => s.entries);
+  const entries = useEntries();
   const addArea = useApp((s) => s.addArea);
   const renameArea = useApp((s) => s.renameArea);
   const removeArea = useApp((s) => s.removeArea);

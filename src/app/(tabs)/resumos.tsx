@@ -15,14 +15,14 @@ import { type DateRange, formatRange, formatShortDate, monthRange, shiftRange, t
 import { errorMessage, sharePdf } from '@/lib/device';
 import { summaryHtml } from '@/lib/html';
 import { buildSummary, totalText } from '@/lib/summary';
-import { useApp } from '@/store';
+import { useApp, useAreas, useEntries } from '@/store';
 import { colors, radius, space } from '@/theme';
 
 type Kind = 'semana' | 'mes';
 
 export default function Resumos() {
-  const entries = useApp((s) => s.entries);
-  const areas = useApp((s) => s.areas);
+  const entries = useEntries();
+  const areas = useAreas();
   const profile = useApp((s) => s.profile);
   const setCopied = useApp((s) => s.setCopied);
 

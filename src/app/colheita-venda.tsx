@@ -12,7 +12,7 @@ import { type DateRange, formatShortDate, monthRange, shiftRange, today as today
 import { formatMoney, formatNumber } from '@/lib/format';
 import { barRatio, harvestByCrop } from '@/lib/harvest';
 import type { Unit } from '@/lib/types';
-import { useApp } from '@/store';
+import { useEntries } from '@/store';
 import { colors, radius, space } from '@/theme';
 
 type Kind = 'semana' | 'mes';
@@ -39,7 +39,7 @@ function Bar({ label, value, max, color, text }: { label: string; value: number;
 }
 
 export default function ColheitaVenda() {
-  const entries = useApp((s) => s.entries);
+  const entries = useEntries();
   const today = todayISO();
   const [kind, setKind] = useState<Kind>('mes');
   const [range, setRange] = useState<DateRange>(() => monthRange(today));

@@ -1,4 +1,5 @@
 import { addDays } from './dates';
+import { uuid } from './ids';
 import type { Area, Entry, ISODate, Profile } from './types';
 
 /**
@@ -12,13 +13,14 @@ export interface SampleData {
   entries: Entry[];
 }
 
-type SampleEntry = Omit<Entry, 'id' | 'date' | 'createdAt' | 'copied' | 'exemplo'>;
+type SampleEntry = Omit<Entry, 'id' | 'date' | 'createdAt' | 'updatedAt' | 'copied' | 'exemplo'>;
 
-export function buildSampleData(today: ISODate): SampleData {
+export function buildSampleData(today: ISODate, newId: () => string = uuid): SampleData {
+  const stamp = `${today}T06:00:00.000Z`;
   const areas: Area[] = [
-    { id: 'ex-canteiro-1', name: 'Canteiro 1', exemplo: true },
-    { id: 'ex-canteiro-2', name: 'Canteiro 2', exemplo: true },
-    { id: 'ex-roca-baixo', name: 'Roça de baixo', exemplo: true },
+    { id: newId(), name: 'Canteiro 1', exemplo: true, updatedAt: stamp },
+    { id: newId(), name: 'Canteiro 2', exemplo: true, updatedAt: stamp },
+    { id: newId(), name: 'Roça de baixo', exemplo: true, updatedAt: stamp },
   ];
   const [c1, c2, roca] = areas.map((a) => a.id);
 
@@ -53,12 +55,14 @@ export function buildSampleData(today: ISODate): SampleData {
 
   const entries: Entry[] = raw.map(([ago, copied, e], i) => {
     const date = addDays(today, -ago);
+    const createdAt = `${date}T0${7 + (i % 3)}:00:00.000Z`;
     return {
       ...e,
-      id: `ex-${i + 1}`,
+      id: newId(),
       date,
       copied,
-      createdAt: `${date}T0${7 + (i % 3)}:00:00.000Z`,
+      createdAt,
+      updatedAt: createdAt,
       exemplo: true,
     };
   });
@@ -91,36 +95,48 @@ export interface SampleRemovalInput {
 
 export interface SampleRemoval {
   state: SampleRemovalInput;
-  /** Fotos das anotações de exemplo apagadas (para tirar do aparelho). */
-  removedPhotos: string[];
+  /** Fotos e recados das anotações de exemplo removidas (para tirar do aparelho). */
+  removedMedia: string[];
+  /** Áreas de exemplo que ficaram porque têm anotações reais (passam a ser do produtor). */
+  promotedAreaIds: string[];
   /** O perfil também era de exemplo: o app volta para as boas-vindas. */
   wasSampleProfile: boolean;
 }
 
 /**
- * Tira só o que veio dos dados de exemplo. Anotações reais ficam, mesmo que
+ * Tira só o que veio dos dados de exemplo (que nunca entram na fila de
+ * sincronização, por isso saem de vez). Anotações reais ficam, mesmo que
  * tenham sido feitas numa área de exemplo; nesse caso a área fica também e
  * deixa de ser marcada como exemplo.
  */
 export function removeSampleData(st: SampleRemovalInput): SampleRemoval {
   const wasSampleProfile = Boolean(st.profile?.exemplo);
   const kept = st.entries.filter((e) => !e.exemplo);
-  const removedPhotos = st.entries.filter((e) => e.exemplo && e.photo).map((e) => e.photo as string);
+  const removedMedia = st.entries
+    .filter((e) => e.exemplo)
+    .flatMap((e) => [e.photo, e.audio])
+    .filter((m): m is string => Boolean(m));
   const usedAreaIds = new Set(kept.map((e) => e.areaId));
+  const promotedAreaIds = st.areas.filter((a) => a.exemplo && usedAreaIds.has(a.id)).map((a) => a.id);
   const areas = st.areas
     .filter((a) => !a.exemplo || usedAreaIds.has(a.id))
-    .map((a) => (a.exemplo ? { id: a.id, name: a.name } : a));
-  const areaIds = new Set(areas.map((a) => a.id));
-  const crops = wasSampleProfile ? [...new Set(kept.map((e) => e.crop))] : st.crops;
+    .map((a) => {
+      if (!a.exemplo) return a;
+      const { exemplo: _exemplo, ...rest } = a;
+      return rest;
+    });
+  const liveAreaIds = new Set(areas.filter((a) => !a.deletedAt).map((a) => a.id));
+  const crops = wasSampleProfile ? [...new Set(kept.filter((e) => !e.deletedAt).map((e) => e.crop))] : st.crops;
   return {
     wasSampleProfile,
-    removedPhotos,
+    removedMedia,
+    promotedAreaIds,
     state: {
       profile: wasSampleProfile ? null : st.profile,
       areas,
       crops,
       entries: kept,
-      lastAreaId: st.lastAreaId && areaIds.has(st.lastAreaId) ? st.lastAreaId : undefined,
+      lastAreaId: st.lastAreaId && liveAreaIds.has(st.lastAreaId) ? st.lastAreaId : undefined,
       cropUsage: wasSampleProfile ? {} : st.cropUsage,
     },
   };

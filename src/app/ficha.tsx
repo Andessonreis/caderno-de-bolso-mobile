@@ -12,7 +12,7 @@ import { UserFacingError, errorMessage, printHtml, sharePdf } from '@/lib/device
 import { fichaFromProfile, fichaUrl } from '@/lib/ficha';
 import { cardHtml } from '@/lib/html';
 import { QR_ECL, qrSvg } from '@/lib/qr';
-import { lastEntryDate, useApp } from '@/store';
+import { lastEntryDate, useApp, useEntries } from '@/store';
 import { colors, radius, space } from '@/theme';
 
 function Line({ label, value }: { label: string; value?: string }) {
@@ -30,7 +30,7 @@ function Line({ label, value }: { label: string; value?: string }) {
 export default function Ficha() {
   const profile = useApp((s) => s.profile);
   const crops = useApp((s) => s.crops);
-  const entries = useApp((s) => s.entries);
+  const entries = useEntries();
   const [busy, setBusy] = useState<'print' | 'pdf' | null>(null);
   const [qrError, setQrError] = useState<string | null>(null);
 

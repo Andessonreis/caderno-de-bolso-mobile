@@ -16,7 +16,7 @@ import { errorMessage, sharePdf } from '@/lib/device';
 import { visitHtml } from '@/lib/html';
 import { buildSummary } from '@/lib/summary';
 import type { ManualCheckId } from '@/lib/types';
-import { useApp } from '@/store';
+import { useApp, useAreas, useEntries, usePhotos } from '@/store';
 import { colors, radius, space } from '@/theme';
 
 /** Para onde mandar o produtor resolver cada item automático. */
@@ -60,9 +60,9 @@ function AutoItem({ item }: { item: CheckItem }) {
 }
 
 export default function Visita() {
-  const entries = useApp((s) => s.entries);
-  const areas = useApp((s) => s.areas);
-  const photos = useApp((s) => s.photos);
+  const entries = useEntries();
+  const areas = useAreas();
+  const photos = usePhotos();
   const profile = useApp((s) => s.profile);
   const manualChecks = useApp((s) => s.manualChecks);
   const lastVisitDate = useApp((s) => s.lastVisitDate);

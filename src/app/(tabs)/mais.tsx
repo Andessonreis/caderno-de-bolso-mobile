@@ -8,7 +8,7 @@ import { ChoiceTile } from '@/components/ChoiceTile';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import type { IconName } from '@/components/Icon';
 import { Screen } from '@/components/Screen';
-import { deletePhotoFile } from '@/lib/device';
+import { deleteMediaFile } from '@/lib/device';
 import { Segmented } from '@/components/Segmented';
 import { useApp } from '@/store';
 import { FONT_CHOICES, colors, radius, space } from '@/theme';
@@ -38,8 +38,8 @@ export default function Mais() {
 
   const doRemoveSample = () => {
     setConfirm(false);
-    const { wasSampleProfile, removedPhotos } = removeSample();
-    removedPhotos.forEach(deletePhotoFile);
+    const { wasSampleProfile, removedMedia } = removeSample();
+    removedMedia.forEach(deleteMediaFile);
     if (wasSampleProfile) router.replace('/boas-vindas');
   };
 

@@ -1,7 +1,16 @@
-import { toRelativePhotoPath } from './photos';
+import type { Change } from '@/data/repository';
+
+import { isUuid, uuid } from './ids';
+import { toRelativeMediaPath } from './media';
 
 /** Versão atual dos dados salvos no aparelho. */
-export const STORAGE_VERSION = 2;
+export const STORAGE_VERSION = 3;
+
+export interface MigrationDeps {
+  newId: () => string;
+  /** ISO 8601 */
+  now: string;
+}
 
 function isObj(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -18,7 +27,7 @@ function v1ToV2(state: Record<string, unknown>): Record<string, unknown> {
     ? state.entries.map((e) => {
         if (!isObj(e)) return e;
         const { photoUri, ...rest } = e;
-        const photo = toRelativePhotoPath(typeof photoUri === 'string' ? photoUri : undefined);
+        const photo = toRelativeMediaPath(typeof photoUri === 'string' ? photoUri : undefined);
         return photo ? { ...rest, photo } : rest;
       })
     : state.entries;
@@ -26,17 +35,101 @@ function v1ToV2(state: Record<string, unknown>): Record<string, unknown> {
     ? state.photos.flatMap((p) => {
         if (!isObj(p)) return [];
         const { uri, ...rest } = p;
-        const file = toRelativePhotoPath(typeof uri === 'string' ? uri : undefined);
+        const file = toRelativeMediaPath(typeof uri === 'string' ? uri : undefined);
         return file ? [{ ...rest, file }] : [];
       })
     : state.photos;
   return { ...state, entries, photos };
 }
 
+export interface RecordsToNormalize {
+  areas: unknown[];
+  entries: unknown[];
+  photos: unknown[];
+  lastAreaId?: unknown;
+}
+
+/**
+ * Garante que todo registro tenha id UUID e `updatedAt`. Ids antigos são
+ * trocados por UUID e as referências (área da anotação, última área usada)
+ * acompanham a troca.
+ */
+export function normalizeRecords<T extends RecordsToNormalize>(data: T, deps: MigrationDeps): T {
+  const areaIds = new Map<string, string>();
+  const fixId = (id: unknown, map?: Map<string, string>): string => {
+    if (isUuid(id)) return id;
+    const next = deps.newId();
+    if (map && typeof id === 'string') map.set(id, next);
+    return next;
+  };
+  const areas = data.areas.map((a) =>
+    isObj(a) ? { ...a, id: fixId(a.id, areaIds), updatedAt: typeof a.updatedAt === 'string' ? a.updatedAt : deps.now } : a,
+  );
+  const entries = data.entries.map((e) => {
+    if (!isObj(e)) return e;
+    const areaId = typeof e.areaId === 'string' ? (areaIds.get(e.areaId) ?? e.areaId) : e.areaId;
+    const updatedAt =
+      typeof e.updatedAt === 'string' ? e.updatedAt : typeof e.createdAt === 'string' ? e.createdAt : deps.now;
+    return { ...e, id: fixId(e.id), areaId, updatedAt };
+  });
+  const photos = data.photos.map((p) =>
+    isObj(p) ? { ...p, id: fixId(p.id), updatedAt: typeof p.updatedAt === 'string' ? p.updatedAt : deps.now } : p,
+  );
+  const lastAreaId =
+    typeof data.lastAreaId === 'string' ? (areaIds.get(data.lastAreaId) ?? data.lastAreaId) : data.lastAreaId;
+  return { ...data, areas, entries, photos, lastAreaId };
+}
+
+/**
+ * Coloca na fila de alterações tudo o que é do produtor (dados de exemplo
+ * nunca vão para a fila), para que a primeira sincronização envie tudo.
+ */
+export function initialChanges(state: Record<string, unknown>, deps: MigrationDeps): Change[] {
+  const changes: Change[] = [];
+  const add = (entity: Change['entity'], recordId: string, deleted: boolean) =>
+    changes.push({ id: deps.newId(), entity, recordId, op: deleted ? 'delete' : 'upsert', at: deps.now });
+  const profile = state.profile;
+  if (isObj(profile) && !profile.exemplo) {
+    add('profile', 'profile', false);
+    add('settings', 'settings', false);
+  }
+  const lists: [Change['entity'], unknown][] = [
+    ['area', state.areas],
+    ['entry', state.entries],
+    ['photo', state.photos],
+  ];
+  for (const [entity, list] of lists) {
+    if (!Array.isArray(list)) continue;
+    for (const r of list) {
+      if (isObj(r) && typeof r.id === 'string' && !r.exemplo) add(entity, r.id, Boolean(r.deletedAt));
+    }
+  }
+  return changes;
+}
+
+/** Versão 2 → 3: ids UUID, `updatedAt` em todo registro e fila de alterações. */
+function v2ToV3(state: Record<string, unknown>, deps: MigrationDeps): Record<string, unknown> {
+  const normalized = normalizeRecords(
+    {
+      ...state,
+      areas: Array.isArray(state.areas) ? state.areas : [],
+      entries: Array.isArray(state.entries) ? state.entries : [],
+      photos: Array.isArray(state.photos) ? state.photos : [],
+    },
+    deps,
+  );
+  return { ...normalized, pendingChanges: initialChanges(normalized, deps) };
+}
+
 /** Atualiza dados salvos por versões anteriores do app. */
-export function migratePersisted(persisted: unknown, fromVersion: number): unknown {
+export function migratePersisted(
+  persisted: unknown,
+  fromVersion: number,
+  deps: MigrationDeps = { newId: uuid, now: new Date().toISOString() },
+): unknown {
   if (!isObj(persisted)) return persisted;
   let state = persisted;
   if (fromVersion < 2) state = v1ToV2(state);
+  if (fromVersion < 3) state = v2ToV3(state, deps);
   return state;
 }

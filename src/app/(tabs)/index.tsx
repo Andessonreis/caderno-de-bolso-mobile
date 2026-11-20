@@ -10,7 +10,7 @@ import { computeChecklist } from '@/lib/checklist';
 import { formatLongDate, inRange, today as todayISO, weekRange } from '@/lib/dates';
 import { describeEntry } from '@/lib/sentence';
 import { areaNameOf } from '@/lib/summary';
-import { useApp } from '@/store';
+import { useApp, useAreas, useEntries, usePhotos } from '@/store';
 import { colors, space } from '@/theme';
 
 function greeting(hour: number): string {
@@ -21,9 +21,9 @@ function greeting(hour: number): string {
 
 export default function Inicio() {
   const profile = useApp((s) => s.profile);
-  const entries = useApp((s) => s.entries);
-  const areas = useApp((s) => s.areas);
-  const photos = useApp((s) => s.photos);
+  const entries = useEntries();
+  const areas = useAreas();
+  const photos = usePhotos();
   const manualChecks = useApp((s) => s.manualChecks);
   const lastVisitDate = useApp((s) => s.lastVisitDate);
   const lastExportAt = useApp((s) => s.lastExportAt);

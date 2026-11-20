@@ -145,7 +145,7 @@ export default function BoasVindas() {
         </AppText>
         <AreasEditor
           areas={areas}
-          onAdd={(name) => setAreas((a) => [...a, { id: newId(), name }])}
+          onAdd={(name) => setAreas((a) => [...a, { id: newId(), name, updatedAt: new Date().toISOString() }])}
           onRename={(id, name) => setAreas((a) => a.map((x) => (x.id === id ? { ...x, name: name.trim() } : x)))}
           onRemove={(area) => setAreas((a) => a.filter((x) => x.id !== area.id))}
         />
