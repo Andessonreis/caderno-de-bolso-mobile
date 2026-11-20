@@ -7,6 +7,7 @@ App Android que deixa o agricultor agroecológico anotar a roça na hora, com po
   <img src="docs/telas/anotar-atividade.png" alt="Anotar: escolha da atividade" width="200">
   <img src="docs/telas/resumos.png" alt="Resumo da semana na ordem do caderno" width="200">
   <img src="docs/telas/visita.png" alt="Lista de apoio para a visita de pares" width="200">
+  <img src="docs/telas/copia-internet-codigo.png" alt="Cópia na internet: código para ligar outro celular" width="200">
 </p>
 
 ## O problema

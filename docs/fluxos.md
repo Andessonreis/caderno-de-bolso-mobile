@@ -118,6 +118,8 @@ O botão **Pronto, começar a anotar** só funciona com o mínimo preenchido. At
 
 ### Cópia na internet (pergunta do primeiro uso)
 
+![Pergunta da cópia na internet](telas/copia-internet-pergunta.png)
+
 Só no celular, logo depois do passo 3. A tela pergunta: "Quer guardar uma cópia na internet para não perder se o celular quebrar?"
 
 - **Sim, guardar na internet** liga a cópia e vai para o Início. Se não houver internet nessa hora, a cópia fica pendente e começa sozinha quando o sinal voltar.
@@ -130,6 +132,8 @@ Sempre visível nas telas principais: **Início**, **Caderno**, **Anotar** (bot�
 ## Início
 
 ![Início](telas/inicio.png)
+
+![Início com a cópia na internet ligada](telas/inicio-copia-ligada.png)
 
 Você chega aqui ao abrir o app, ao concluir o cadastro ou pela aba Início. A tela mostra:
 
@@ -186,6 +190,8 @@ Primeiro escolhe-se a unidade (quilo, saca, caixa, maço, unidade, litro, carrin
 ### Confira e salve
 
 ![Revisão](telas/anotar-revisao.png)
+
+![Revisão: recado de voz e foto](telas/anotar-revisao-recado.png)
 
 A anotação aparece numa frase ("Hoje, no Canteiro 1: plantio de 12 kg de feijão (banco de sementes)"). Nesta tela:
 
@@ -343,6 +349,10 @@ Funciona sem internet. O arquivo pode ser guardado no WhatsApp, no e-mail ou num
 
 ## Cópia na internet
 
+![Cópia na internet: ligar outro celular](telas/copia-internet-codigo.png)
+
+![Cópia na internet: cartão de recuperação, parar e apagar](telas/copia-internet-rodape.png)
+
 Só no app do celular. Você chega aqui por Mais, pelo indicador do Início ou de Mais, ou pela pergunta do primeiro uso.
 
 - **Desligada:** a tela pergunta "Quer guardar uma cópia na internet para não perder se o celular quebrar?", explica que não precisa de e-mail nem senha e que tudo continua funcionando sem sinal, e oferece **Sim, guardar na internet** e **Agora não**.
@@ -357,6 +367,10 @@ Só no app do celular. Você chega aqui por Mais, pelo indicador do Início ou d
 O envio é automático: ao abrir o app, quando a internet volta, quando o app volta para a frente e alguns segundos depois de salvar algo. Sem internet, nada trava. Os envios esperam e são feitos depois.
 
 ## Já tenho um caderno (ligar este celular)
+
+![Já tenho um caderno](telas/ligar-escolher.png)
+
+![Ligar este celular?](telas/ligar-confirmar.png)
 
 Só no app do celular. Você chega aqui pelas boas-vindas ("Já tenho um caderno"), pela Cópia na internet ("Ligar de novo") ou abrindo o link `cadernodebolso://ligar?...`.
 
