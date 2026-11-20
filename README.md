@@ -11,16 +11,16 @@ App Android que deixa o agricultor agroecológico anotar a roça na hora, com po
 
 ## O problema
 
-Agricultores familiares do Território de Irecê (BA), certificados como orgânicos por sistema participativo de garantia, plantam milho crioulo, feijão e hortaliças. Eles mantêm um caderno de campo em papel, conferido em visitas de pares três vezes por ano, e entregam uma declaração de transação ao comprador a cada venda.
+Agricultores familiares do Território de Irecê (BA), certificados como orgânicos por sistema participativo de garantia, plantam milho crioulo, feijão e hortaliças. Eles mantêm um caderno de campo em papel, conferido em visitas de pares três vezes por ano, e entregam a declaração de transação comercial (DTC) ao comprador.
 
 Em entrevistas com esses produtores apareceram quatro dores:
 
-- **Anotar duas vezes.** A anotação é feita na hora num papel solto ou no celular e depois copiada para o caderno. Há produtor que gasta de 5 a 6 horas por semana nisso.
+- **Anotar duas vezes.** A anotação é feita na hora num papel solto ou no celular e depois copiada para o caderno. Um produtor disse gastar de 5 a 6 horas por semana com anotações e documentos.
 - **Caderno que molha ou se perde.** O registro de anos fica numa única cópia de papel.
 - **Provar a cada venda que é orgânico.** Hoje isso se resolve mostrando foto ou convidando o comprador para ir à roça.
-- **Preparar a visita de pares.** Não há um jeito rápido de saber o que falta antes da visita.
+- **Estar pronto para a visita de pares.** Os produtores querem estar sempre em dia para a visita e para auditorias surpresa. Um jeito rápido de ver o que falta é uma hipótese a testar.
 
-Os entrevistados também deixaram claras as condições de uso: o sinal na roça é ruim, aplicativos anteriores foram abandonados por serem complicados, e o caderno de papel continua sendo o registro oficial.
+As entrevistas também apontaram condições de uso: o sinal na roça é instável, um produtor achou os aplicativos que conhece complexos e pouco adequados ao sistema de produção, e o caderno de papel continua sendo o registro oficial conferido na visita.
 
 ## A solução
 
@@ -65,7 +65,7 @@ O passo a passo de cada tela, com o mapa de navegação e o fluxo principal em d
 
 **Offline primeiro.** Tudo é gravado no aparelho primeiro e todas as funções de anotar e consultar rodam sem sinal. A internet só entra na cópia na internet (que espera o sinal e nunca trava a tela), em ligar outro celular e quando o comprador abre a ficha lida no QR.
 
-**Anotar por seleção.** Digitar texto foi o que fez os produtores largarem aplicativos anteriores. Por isso a anotação é feita com toques, e só a quantidade é digitada. Uma colheita numa roça com uma área leva quatro toques além dos números.
+**Anotar por seleção.** Um dos produtores entrevistados disse que prefere só selecionar a cultura e digitar a quantidade, e outro achou os aplicativos que conhece complexos. Por isso a anotação é feita com toques, e só a quantidade é digitada. Uma colheita numa roça com uma área leva quatro toques além dos números.
 
 **Sincronização sem login.** Cada caderno tem uma conta (id dado pelo servidor) e uma chave secreta de 32 bytes, gerada no aparelho com `expo-crypto` e guardada no `expo-secure-store`. O servidor guarda só o resumo (sha256) da chave. Não há e-mail nem senha; quem tem o código de ligar o celular tem acesso ao caderno, e a interface diz isso com todas as letras.
 
@@ -144,6 +144,10 @@ docs/                  fluxos por tela e capturas
 ```
 
 O fluxo de dados vai numa direção só: a tela chama uma ação do `store`, o `store` aplica as regras do repositório e registra a alteração na fila, e as telas leem os registros ativos com `useEntries`, `useAreas` e `usePhotos`.
+
+## Situação
+
+Protótipo da Fase 2 do Projeto I.D.E.I.A. (Empreendedorismo, IFBA Irecê). Ainda não foi testado com produtores. As hipóteses a validar no teste rápido são: anotar no app é mais rápido que no papel solto; o resumo reduz o tempo de passar a limpo; o comprador usa o QR para conferir a origem; o roteiro de apoio encurta a visita de pares.
 
 ## Como rodar
 
