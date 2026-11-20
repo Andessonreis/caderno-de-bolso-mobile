@@ -60,7 +60,7 @@ flowchart TD
 
 ## Fluxo principal: da roça à venda
 
-Este é o caminho que resolve a principal dor dos produtores: anotar na hora, passar a limpo sem reescrever de memória e provar a origem na venda.
+Este é o caminho que resolve a principal dor dos produtores: anotar na hora, passar a limpo sem precisar reescrever tudo e provar a origem na venda.
 
 ```mermaid
 flowchart LR

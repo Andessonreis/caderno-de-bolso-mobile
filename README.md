@@ -195,6 +195,5 @@ O `npm run test:rede` fala com o serviço de verdade e apaga o caderno de teste 
 
 ## Próximos passos
 
-- **Painel do grupo**, para o núcleo ou a cooperativa acompanhar, com autorização do produtor, quem está com o caderno em dia antes das visitas.
-- **Declaração de transação** gerada a partir de uma venda anotada.
+- **Declaração de transação** gerada a partir de uma venda anotada, se a OPAC fornecer o modelo.
 - **Testes de campo** com os produtores entrevistados, para ajustar textos e fluxos ao uso real na roça.
