@@ -9,6 +9,8 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { Platform } from 'react-native';
 
+import { isRelativePhotoPath } from './photos';
+
 export class UserFacingError extends Error {}
 
 function photosDir(folder: 'anotacoes' | 'caderno'): Directory {
@@ -24,7 +26,7 @@ function extensionOf(uri: string): string {
 
 /**
  * Abre a câmera ou a galeria e guarda a foto na pasta do app.
- * Retorna o endereço da cópia, ou null se a pessoa desistiu.
+ * Retorna o caminho relativo da cópia ("pasta/arquivo"), ou null se a pessoa desistiu.
  */
 export async function takePhoto(source: 'camera' | 'galeria', folder: 'anotacoes' | 'caderno'): Promise<string | null> {
   if (Platform.OS === 'web') throw new UserFacingError('Fotos só funcionam no celular.');
@@ -44,17 +46,39 @@ export async function takePhoto(source: 'camera' | 'galeria', folder: 'anotacoes
     source === 'camera' ? await ImagePicker.launchCameraAsync(options) : await ImagePicker.launchImageLibraryAsync(options);
   if (result.canceled) return null;
   const asset = result.assets[0];
-  const dest = new File(photosDir(folder), `${Date.now()}.${extensionOf(asset.uri)}`);
-  await new File(asset.uri).copy(dest);
-  return dest.uri;
+  const name = `${Date.now()}.${extensionOf(asset.uri)}`;
+  await new File(asset.uri).copy(new File(photosDir(folder), name));
+  return `${folder}/${name}`;
+}
+
+function photoFile(relative: string): File | null {
+  if (!isRelativePhotoPath(relative)) return null;
+  const [folder, name] = relative.split('/');
+  return new File(Paths.document, 'fotos', folder, name);
+}
+
+/** Endereço para mostrar a foto, montado a partir do caminho relativo salvo. */
+export function photoUri(relative: string | undefined): string | undefined {
+  if (!relative || Platform.OS === 'web') return undefined;
+  return photoFile(relative)?.uri;
+}
+
+/** A foto existe neste aparelho? */
+export function photoExists(relative: string): boolean {
+  if (Platform.OS === 'web') return false;
+  try {
+    return photoFile(relative)?.exists ?? false;
+  } catch {
+    return false;
+  }
 }
 
 /** Apaga a foto guardada pelo app. Ignora se ela já não existir. */
-export function deletePhotoFile(uri: string | undefined): void {
-  if (!uri || Platform.OS === 'web') return;
+export function deletePhotoFile(relative: string | undefined): void {
+  if (!relative || Platform.OS === 'web') return;
   try {
-    const f = new File(uri);
-    if (f.exists) f.delete();
+    const f = photoFile(relative);
+    if (f?.exists) f.delete();
   } catch {
     // A foto pode ter sido apagada fora do app; não há o que fazer.
   }

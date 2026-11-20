@@ -13,7 +13,7 @@ import { Icon } from '@/components/Icon';
 import { Snackbar } from '@/components/Snackbar';
 import { ACTIVITIES, capitalize } from '@/lib/catalog';
 import { formatRelativeDay, today as todayISO } from '@/lib/dates';
-import { deletePhotoFile } from '@/lib/device';
+import { deletePhotoFile, photoUri } from '@/lib/device';
 import { type HistoryFilter, filterEntries, groupByDay } from '@/lib/history';
 import { describeDetails, describeWhat, inArea } from '@/lib/sentence';
 import { areaNameOf } from '@/lib/summary';
@@ -46,7 +46,7 @@ export default function Caderno() {
   const confirmDelete = () => {
     if (!toDelete) return;
     // Se a foto ainda estiver pendente de um apagamento anterior, apaga agora.
-    if (lastDeleted.current) deletePhotoFile(lastDeleted.current.photoUri);
+    if (lastDeleted.current) deletePhotoFile(lastDeleted.current.photo);
     lastDeleted.current = deleteEntry(toDelete.id) ?? null;
     setToDelete(null);
     setSnack('Anotação apagada.');
@@ -59,7 +59,7 @@ export default function Caderno() {
 
   const hideSnack = useCallback(() => {
     // Sem "Desfazer": a foto da anotação apagada sai do aparelho.
-    if (lastDeleted.current) deletePhotoFile(lastDeleted.current.photoUri);
+    if (lastDeleted.current) deletePhotoFile(lastDeleted.current.photo);
     lastDeleted.current = null;
     setSnack(null);
   }, []);
@@ -155,8 +155,8 @@ export default function Caderno() {
           return (
             <View style={styles.item}>
               <View style={styles.itemTop}>
-                {item.photoUri ? (
-                  <Image source={{ uri: item.photoUri }} style={styles.thumb} contentFit="cover" accessibilityLabel="Foto" />
+                {item.photo ? (
+                  <Image source={{ uri: photoUri(item.photo) }} style={styles.thumb} contentFit="cover" accessibilityLabel="Foto" />
                 ) : null}
                 <View style={styles.flex}>
                   <AppText variant="small" color={colors.inkMuted}>

@@ -58,7 +58,8 @@ export interface Entry {
   value?: number;
   destination?: SaleDestination;
   note?: string;
-  photoUri?: string;
+  /** Foto da anotação: caminho relativo à pasta de fotos (ex.: "anotacoes/1732.jpg"). */
+  photo?: string;
   /** Já foi passada a limpo para o caderno de papel. */
   copied: boolean;
   createdAt: string;
@@ -80,7 +81,8 @@ export interface Profile {
 /** Foto de uma página do caderno de papel (cópia de segurança). */
 export interface NotebookPhoto {
   id: string;
-  uri: string;
+  /** Caminho relativo à pasta de fotos (ex.: "caderno/1732.jpg"). */
+  file: string;
   date: ISODate;
   caption?: string;
 }

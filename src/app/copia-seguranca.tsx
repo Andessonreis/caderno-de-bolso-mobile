@@ -12,7 +12,16 @@ import { Screen } from '@/components/Screen';
 import { parseBackup } from '@/lib/backup';
 import { lastBackupDate } from '@/lib/checklist';
 import { formatRelativeDay, formatShortDate, today as todayISO } from '@/lib/dates';
-import { deletePhotoFile, errorMessage, hapticSuccess, pickTextFile, shareJson, takePhoto } from '@/lib/device';
+import {
+  deletePhotoFile,
+  errorMessage,
+  hapticSuccess,
+  photoExists,
+  photoUri,
+  pickTextFile,
+  shareJson,
+  takePhoto,
+} from '@/lib/device';
 import type { NotebookPhoto } from '@/lib/types';
 import { exportSnapshot, newId, useApp } from '@/store';
 import { colors, radius, space } from '@/theme';
@@ -32,7 +41,7 @@ function PhotoViewer({ photo, onClose }: { photo: NotebookPhoto | null; onClose:
             Página fotografada em {formatShortDate(photo.date)}
           </AppText>
           <Image
-            source={{ uri: photo.uri }}
+            source={{ uri: photoUri(photo.file) }}
             style={styles.full}
             contentFit="contain"
             accessibilityLabel={photo.caption ? `Foto: ${photo.caption}` : 'Foto da página do caderno'}
@@ -67,7 +76,7 @@ function PhotoViewer({ photo, onClose }: { photo: NotebookPhoto | null; onClose:
           danger
           onConfirm={() => {
             removePhoto(photo.id);
-            deletePhotoFile(photo.uri);
+            deletePhotoFile(photo.file);
             setConfirm(false);
             onClose();
           }}
@@ -100,9 +109,9 @@ export default function CopiaSeguranca() {
   const snap = async (source: 'camera' | 'galeria') => {
     setBusy(source);
     try {
-      const uri = await takePhoto(source, 'caderno');
-      if (uri) {
-        addPhoto({ id: newId(), uri, date: today });
+      const file = await takePhoto(source, 'caderno');
+      if (file) {
+        addPhoto({ id: newId(), file, date: today });
         hapticSuccess();
       }
     } catch (e) {
@@ -132,14 +141,17 @@ export default function CopiaSeguranca() {
     try {
       const text = await pickTextFile();
       if (text === null) return;
-      const result = parseBackup(text);
+      const result = parseBackup(text, photoExists);
       if (!result.ok) {
         Alert.alert('Importar', result.error);
         return;
       }
       importData(result.data);
       hapticSuccess();
-      Alert.alert('Importar', `Pronto! ${result.data.entries.length} anotações foram trazidas do arquivo.`);
+      const lost = result.droppedPhotos
+        ? ` ${result.droppedPhotos === 1 ? '1 foto de anotação não está' : `${result.droppedPhotos} fotos de anotação não estão`} neste celular e ficou de fora.`
+        : '';
+      Alert.alert('Importar', `Pronto! ${result.data.entries.length} anotações foram trazidas do arquivo.${lost}`);
     } catch (e) {
       Alert.alert('Importar', errorMessage(e));
     } finally {
@@ -202,7 +214,7 @@ export default function CopiaSeguranca() {
                   accessibilityLabel={`Abrir foto${p.caption ? `: ${p.caption}` : ''}`}
                   onPress={() => setViewing(p)}
                   style={({ pressed }) => [styles.tile, pressed && { opacity: 0.8 }]}>
-                  <Image source={{ uri: p.uri }} style={styles.thumb} contentFit="cover" />
+                  <Image source={{ uri: photoUri(p.file) }} style={styles.thumb} contentFit="cover" />
                   <AppText variant="small" numberOfLines={2} style={styles.caption}>
                     {p.caption ?? 'Sem legenda'}
                   </AppText>

@@ -3,7 +3,8 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import type { BackupData } from '@/lib/backup';
-import { buildSampleData } from '@/lib/sample';
+import { migratePersisted, STORAGE_VERSION } from '@/lib/migrate';
+import { buildSampleData, removeSampleData } from '@/lib/sample';
 import type { Area, Entry, FontSizeChoice, ISODate, ManualCheckId, NotebookPhoto, Profile } from '@/lib/types';
 import { bumpUsage } from '@/lib/usage';
 
@@ -28,8 +29,8 @@ export interface AppData {
 interface AppActions {
   completeOnboarding: (profile: Profile, areas: Area[], crops: string[]) => void;
   loadSample: (today: ISODate) => void;
-  /** Apaga o que veio dos dados de exemplo. Retorna true se o perfil também era de exemplo. */
-  removeSample: () => boolean;
+  /** Apaga o que veio dos dados de exemplo. Quem chama apaga os arquivos de foto devolvidos. */
+  removeSample: () => { wasSampleProfile: boolean; removedPhotos: string[] };
   updateProfile: (profile: Profile) => void;
   addArea: (name: string) => void;
   renameArea: (id: string, name: string) => void;
@@ -46,6 +47,8 @@ interface AppActions {
   removePhoto: (id: string) => void;
   setManualCheck: (id: ManualCheckId, value: boolean) => void;
   setLastVisitDate: (date: ISODate | undefined) => void;
+  /** Desmarca os itens que o produtor marca à mão (nova visita). */
+  resetManualChecks: () => void;
   setFontSize: (size: FontSizeChoice) => void;
   markExported: (date: ISODate) => void;
   importData: (data: BackupData) => void;
@@ -95,20 +98,9 @@ export const useApp = create<AppState>()(
       },
 
       removeSample: () => {
-        const wasSampleProfile = Boolean(get().profile?.exemplo);
-        set((st) => {
-          const areas = st.areas.filter((a) => !a.exemplo);
-          const areaIds = new Set(areas.map((a) => a.id));
-          return {
-            profile: wasSampleProfile ? null : st.profile,
-            areas,
-            crops: wasSampleProfile ? [] : st.crops,
-            entries: st.entries.filter((e) => !e.exemplo && areaIds.has(e.areaId)),
-            lastAreaId: st.lastAreaId && areaIds.has(st.lastAreaId) ? st.lastAreaId : undefined,
-            cropUsage: wasSampleProfile ? {} : st.cropUsage,
-          };
-        });
-        return wasSampleProfile;
+        const { state, removedPhotos, wasSampleProfile } = removeSampleData(get());
+        set(state);
+        return { wasSampleProfile, removedPhotos };
       },
 
       updateProfile: (profile) => set({ profile }),
@@ -162,6 +154,8 @@ export const useApp = create<AppState>()(
 
       setLastVisitDate: (date) => set({ lastVisitDate: date }),
 
+      resetManualChecks: () => set({ manualChecks: {} }),
+
       setFontSize: (fontSize) => set({ fontSize }),
 
       markExported: (date) => set({ lastExportAt: date }),
@@ -181,7 +175,8 @@ export const useApp = create<AppState>()(
     }),
     {
       name: 'caderno-de-bolso',
-      version: 1,
+      version: STORAGE_VERSION,
+      migrate: (persisted, version) => migratePersisted(persisted, version) as AppData,
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (st): AppData => ({
         profile: st.profile,
