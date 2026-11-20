@@ -43,6 +43,9 @@ flowchart TD
 
     Caderno -- Mudar --> Anotar
     Resumos -- Colheita e venda --> CV[Colheita e venda]
+    Visita -- Visitar outra roça --> Lista[Lista de visitas a outras roças]
+    Lista -- Começar uma visita / Continuar --> Roteiro[Roteiro de visita: 7 etapas e resumo]
+    Roteiro -- Lista de visitas --> Lista
     Visita -- itens com falta --> Caderno
     Visita -- itens com falta --> Resumos
     Visita -- itens com falta --> CS[Cópia de segurança]
@@ -276,7 +279,14 @@ Funciona sem internet.
 
 ![Visita](telas/20-visita.png)
 
-Você chega aqui pela aba Visita ou pelo cartão do Início. A tela diz que é uma **lista de apoio** e que não é o roteiro oficial de nenhum grupo ou certificadora. Ela mostra:
+Você chega aqui pela aba Visita ou pelo cartão do Início. No alto da aba ficam duas escolhas grandes, uma embaixo da outra:
+
+- **Minha roça** ("Me preparar para receber a visita"): a lista descrita nesta seção. É a que abre primeiro.
+- **Visitar outra roça** ("Para quando você vai visitar outro produtor"): troca a aba para a [lista de visitas a outras roças](#visitar-outra-roça-lista-de-visitas).
+
+A escolhida fica marcada em verde e com o sinal de confirmado.
+
+Em **Minha roça**, a tela diz que é uma **lista de apoio** e que não é o roteiro oficial de nenhum grupo ou certificadora. Ela mostra:
 
 - **Progresso:** "2 de 10 itens prontos", com barra.
 - **Última visita:** a data informada, ou "Não informada", e nesse caso a lista olha os últimos 120 dias. **Informar a data** ou **Mudar a data** mostra botões para voltar ou avançar dias, semanas e meses. "Não lembro a data" limpa a data. Se a data muda e há itens marcados à mão, o app pergunta se quer desmarcá-los, porque eram da visita anterior.
@@ -285,6 +295,79 @@ Você chega aqui pela aba Visita ou pelo cartão do Início. A tela diz que é u
 - **Compartilhar resumo para a visita:** um PDF com os dados do produtor, a lista e as anotações desde a última visita.
 
 Funciona sem internet.
+
+## Visitar outra roça (lista de visitas)
+
+Você chega aqui pela aba Visita, tocando em **Visitar outra roça**, ou pelo botão **Lista de visitas** de dentro de uma visita. É o lado de quem **vai visitar a roça de outro produtor** do grupo: o produtor visitado é avaliado, não você.
+
+**O que aparece:** as duas escolhas no alto, o título "Visitar outra roça" e um quadro que explica que é para quando você for visitar a roça de outro produtor, que as perguntas se respondem com um toque e que tudo fica salvo no celular na hora, sem internet. O quadro também lembra que é um **roteiro de apoio** e que não substitui o roteiro nem os documentos oficiais do seu grupo (OPAC). Abaixo, o botão grande **Começar uma visita** e a parte **Visitas guardadas neste celular**.
+
+Sem visitas, aparece "Nenhuma visita ainda", explicando que dá para começar quando chegar na roça e continuar depois. Com visitas, cada uma vem num cartão com o nome do produtor (ou "Produtor sem nome"), a data por extenso, o município, uma barra de progresso e "N de M respondidas". A mais recente fica em cima.
+
+**Ações:**
+
+- **Começar uma visita:** cria uma visita nova, já com a data de hoje, e abre a Etapa 1.
+- **Continuar:** abre a visita, com tudo o que já foi respondido.
+- **Apagar:** pergunta "Apagar esta visita?", com o nome do produtor. Em **Sim, apagar**, a visita sai da lista e aparece "Visita apagada." com **Desfazer**, que traz a visita de volta como estava.
+
+Funciona sem internet.
+
+## Roteiro de visita (dentro de uma visita)
+
+As perguntas são as mesmas do roteiro de apoio à visita do site.
+
+**O que aparece em todas as etapas:** no alto, **Lista de visitas** para voltar. Depois, "Visita a" e o nome do produtor (ou "Nova visita"), "N de M respondidas" com barra de progresso e, depois do primeiro toque, "Salvo neste celular". Em seguida, a fileira de botões das etapas, numerados de 1 a 7, mais **Resumo**: a etapa atual fica em verde, e a etapa sem nada faltando ganha um sinal de confirmado ao lado do número. Tocando em qualquer botão, vai direto para aquela etapa. Abaixo, "Etapa N de 7", o título e uma frase sobre a etapa.
+
+No pé da tela, sempre visível, ficam **Voltar** (a partir da Etapa 2) e **Próxima etapa** (na Etapa 7 o botão se chama **Ver resumo**). No Resumo, o pé tem **Voltar** e **Lista de visitas**. Cada etapa nova abre do começo da tela.
+
+**Como se responde cada pergunta:** a pergunta aparece em negrito, às vezes com uma explicação curta embaixo, e quatro botões grandes, cada um com seu ícone: **Sim**, **Em parte**, **Não** e **Não se aplica**. A resposta escolhida fica verde e com o ícone preenchido, e o quadro da pergunta ganha borda verde. Abaixo há **Anotar observação**, que abre um campo de texto opcional. Tudo pode ser mudado a qualquer momento, e cada toque ou letra é salvo no celular na hora.
+
+O que conta como "respondido" no progresso: as perguntas de Sim/Não visíveis, o nome do produtor, a data, o tipo de visita, o uso do armazém (e, se compartilhado, como é feita a separação) e o parecer. O resto é opcional.
+
+### Etapa 1. Quem e quando
+
+No alto, o quadro **Tem a ficha do produtor?**, opcional, para não precisar digitar:
+
+- **Ler o QR da ficha com a câmera:** pede a permissão da câmera (sem ela, a tela explica como liberar ou sugere colar o link) e abre a câmera com "Aponte para o QR da ficha do produtor" e **Cancelar**. Ao achar o QR da ficha, o celular vibra e volta para a etapa com os dados preenchidos. QR que não é de ficha é ignorado.
+- **Ou cole o link da ficha** e **Usar dados da ficha:** aceita o link completo ou só o código. Campo vazio: "Cole o link da ficha que aparece ao ler o QR do produtor." Link cortado ou errado: "Não conseguimos ler esta ficha. Confira se o link está completo."
+
+Com a ficha lida, aparece "Dados de X preenchidos.": o nome, o município e as culturas vêm da ficha, e as culturas que pedem comprovação de origem (algodão, feijão, milho, soja) já ficam marcadas na Etapa 3.
+
+Depois vêm **Nome do produtor visitado** (obrigatório), **Município**, as culturas da ficha (se houver), **Quem está visitando** (os nomes, separados por vírgula), **Data da visita** (já vem com a data de hoje; botões para voltar ou avançar dias, semanas e meses) e **Tipo de visita** (obrigatório): **Visita de pares** (feita por agricultores do grupo) ou **Olhar externo** (com alguém de fora do grupo). A tecla do teclado passa do nome para o município e do município para quem está visitando.
+
+### Etapa 2. Documentos
+
+Seis perguntas: o caderno de campo foi apresentado; o caderno está em dia (plantios, tratos, colheitas e vendas anotados até a semana da visita); as notas fiscais e recibos estão guardados; as DTCs entregues aos compradores estão guardadas; o plano de manejo está atualizado; o plano de manejo bate com o que foi visto na roça.
+
+### Etapa 3. Sementes e mudas
+
+Primeiro, **Tem algodão, feijão, milho ou soja plantado?**, com as quatro culturas para marcar (pode marcar mais de uma, ou nenhuma). Depois, **A origem das sementes e mudas está anotada?**. Se alguma das quatro estiver marcada, aparece também **Há comprovação de origem do material plantado dessas culturas?**. Desmarcando todas, essa pergunta some e deixa de contar no progresso.
+
+### Etapa 4. Insumos e manejo
+
+Quatro perguntas: os insumos usados são permitidos na produção orgânica; a origem dos insumos está registrada; as caldas e adubos aplicados estão anotados no caderno; há proteção contra contaminação vinda do vizinho.
+
+### Etapa 5. Colheita, armazenamento e transporte
+
+Primeiro, **O armazém e o transporte são:** **Só para orgânico** ou **Compartilhados com convencional** (obrigatório). Escolhendo compartilhados, aparecem o campo **Como a separação é feita e registrada?** (obrigatório nesse caso) e a pergunta **A separação do produto orgânico está sendo feita e anotada?**. Em qualquer caso, há **A colheita está anotada no caderno?** e **As embalagens e sacarias estão limpas e identificadas?**.
+
+### Etapa 6. Controle
+
+Duas perguntas: a família anota custos e produção; as quantidades colhidas e vendidas fazem sentido entre si.
+
+### Etapa 7. Fechamento
+
+**O que precisa corrigir:** começa com "Nenhuma anotada." **Anotar não conformidade** abre um item com o campo do que precisa corrigir e o prazo: **Marcar prazo** põe a data daqui a 30 dias, que se ajusta com os botões de dias, semanas e meses, e **Tirar o prazo** limpa. Cada item tem **Tirar este item**. Dá para anotar até 15.
+
+Depois, **Pontos fortes** (o que a família está fazendo bem), **Observações** e o **Parecer da visita** (obrigatório): **Conforme**, **Conforme com pendências** ou **Não conforme**, cada um com uma frase explicando.
+
+### Resumo
+
+Se tudo foi respondido, aparece "Tudo respondido. Pode gerar o PDF." Senão, aparece "Faltam N respostas", com o que ficou em branco agrupado por etapa e, em cada grupo, **Responder agora**, que leva direto àquela etapa. A tela avisa que dá para gerar o PDF assim mesmo: o que ficou sem resposta sai em branco.
+
+**Gerar PDF da visita** monta a folha e abre o compartilhar (WhatsApp, salvar, imprimir...). A folha traz os dados da visita, uma tabela por etapa com pergunta, resposta e observação, as não conformidades com prazo, pontos fortes, observações, o parecer marcado e três linhas de assinatura: produtor visitado e duas de quem visitou. O rodapé lembra que é um roteiro de apoio e não substitui o roteiro nem os documentos oficiais do grupo.
+
+**Sem internet:** todas as etapas, a leitura do QR, o resumo e o PDF funcionam sem internet. As visitas entram na cópia de segurança e, com a cópia na internet ligada, também vão para a internet.
 
 ## Mais
 
@@ -342,7 +425,7 @@ Você chega aqui por Mais ou pela Visita, no item "Cópia de segurança". A tela
 
 - a **última cópia** ("Última cópia: hoje") ou "Ainda não tem cópia";
 - **Fotos do caderno de papel:** **Fotografar página** ou **Da galeria**, com as fotos agrupadas por dia. Tocar numa foto abre em tela cheia, com legenda, **Salvar legenda**, **Apagar foto** (com confirmação) e **Fechar**. Sem fotos, a tela explica como fotografar as páginas;
-- **Exportar meus dados**, que gera um único arquivo `.zip` com dados, anotações, fotos e recados de voz e abre o compartilhar;
+- **Exportar meus dados**, que gera um único arquivo `.zip` com dados, anotações, visitas a outras roças, fotos e recados de voz e abre o compartilhar;
 - **Importar arquivo**, que pede confirmação (os dados do app são trocados pelos do arquivo) e restaura tudo, inclusive as fotos e os recados. Um arquivo que não é do app ou que está com problema gera uma mensagem, sem travar. Arquivos `.json` exportados por versões anteriores também são aceitos.
 
 Funciona sem internet. O arquivo pode ser guardado no WhatsApp, no e-mail ou num pen drive.
@@ -403,6 +486,7 @@ Aparece se um link aberto não corresponde a nenhuma tela. Explica que as anota�
 | Resumos, PDF, compartilhar e imprimir | O comprador abrir a ficha lida no QR |
 | Colheita e venda | |
 | Lista da visita e PDF da visita | |
+| Roteiro de visita a outra roça, leitura do QR da ficha e PDF da visita | |
 | Mostrar o QR da ficha e o cartão | |
 | Fotos do caderno, exportar e importar o `.zip` | |
 | Tamanho da letra, perfil, áreas e culturas | |
@@ -418,7 +502,8 @@ Quando a cópia na internet está ligada e falta sinal, o indicador diz "Sem int
 | Caderno | Usar as anotações para gerir a produção |
 | Resumos | Anotar duas vezes; horas com anotações; estar pronto para a visita |
 | Colheita e venda | Usar as anotações para gerir a produção |
-| Visita | Estar pronto para a visita |
+| Visita (Minha roça) | Estar pronto para a visita |
+| Visitar outra roça e roteiro de visita | Visita que toma o dia inteiro: respostas com um toque, perguntas que só aparecem quando fazem sentido, dados da ficha sem digitar e folha pronta para assinar |
 | Minha ficha (QR) | Provar a cada venda que é orgânico; comprador conferir sozinho |
 | Cópia de segurança | Caderno que se perde ou molha |
 | Cópia na internet e Já tenho um caderno | Caderno que se perde ou molha |

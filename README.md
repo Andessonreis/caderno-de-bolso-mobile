@@ -47,6 +47,7 @@ O Caderno de Bolso é um ajudante do caderno de campo, não um substituto. O pro
 - Lista de apoio com cinco itens conferidos automaticamente a partir das anotações: caderno em dia, origem das sementes (com destaque para milho e feijão), insumos com origem, colheitas anotadas e cópia de segurança recente. Cada item explica o que foi conferido e o que falta.
 - Itens que o produtor marca: notas e recibos, declarações de transação, plano de manejo, separação de produto convencional e pendências da última visita.
 - PDF "Resumo para a visita", com dados do produtor, a lista e as anotações desde a última visita.
+- **Visitar outra roça:** a aba Visita tem duas escolhas no alto, **Minha roça** (a lista acima) e **Visitar outra roça**, para quando o produtor vai visitar a roça de outro do grupo. Ali fica o roteiro de apoio à visita, com as mesmas perguntas do site, em sete etapas: quem e quando, documentos, sementes e mudas, insumos e manejo, colheita e armazenamento, controle e fechamento. Cada pergunta se responde com um toque (Sim, Em parte, Não, Não se aplica), com observação se quiser. Perguntas que dependem da roça só aparecem quando fazem sentido. Os dados do produtor visitado vêm do QR da ficha dele, lido com a câmera. No fechamento entram o que precisa corrigir, com prazo, e o parecer. O resumo mostra o que falta e gera um PDF com linhas de assinatura. Funciona sem internet, salva a cada toque e entra na cópia de segurança e na cópia na internet.
 
 ### Ficha do produtor (QR)
 
