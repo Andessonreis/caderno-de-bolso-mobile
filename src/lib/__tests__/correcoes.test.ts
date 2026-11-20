@@ -121,8 +121,8 @@ describe('fotos com caminho relativo', () => {
   });
 
   it('não mexe em dados já na versão atual', () => {
-    const v4 = { entries: [{ id: '1', photo: 'anotacoes/1.jpg' }], photos: [] };
-    expect(migratePersisted(v4, 4)).toEqual(v4);
+    const v5 = { entries: [{ id: '1', photo: 'anotacoes/1.jpg' }], photos: [], peerVisits: [] };
+    expect(migratePersisted(v5, 5)).toEqual(v5);
   });
 });
 

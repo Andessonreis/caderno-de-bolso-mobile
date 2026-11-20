@@ -8,8 +8,9 @@ import type { SyncMeta } from '@/lib/types';
 /**
  * Tipos de registro sincronizados. São os mesmos nomes usados no servidor
  * (coluna `tipo`). perfil, culturas e visita são registros únicos por caderno.
+ * `visita_par` é cada roteiro preenchido ao visitar a roça de outro produtor.
  */
-export type EntityKind = 'perfil' | 'culturas' | 'visita' | 'area' | 'anotacao' | 'pagina';
+export type EntityKind = 'perfil' | 'culturas' | 'visita' | 'area' | 'anotacao' | 'pagina' | 'visita_par';
 
 /** Id fixo dos registros únicos. */
 export const SINGLETON_IDS = { perfil: 'perfil', culturas: 'culturas', visita: 'visita' } as const;

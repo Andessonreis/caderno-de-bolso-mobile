@@ -18,6 +18,7 @@ import {
 import { BACKUP_VERSION, type BackupData } from '@/lib/backup';
 import { uuid } from '@/lib/ids';
 import { initialChanges, migratePersisted, STORAGE_VERSION } from '@/lib/migrate';
+import type { Visita } from '@/lib/roteiro';
 import { buildSampleData, removeSampleData } from '@/lib/sample';
 import type { Area, Entry, FontSizeChoice, ISODate, ManualCheckId, NotebookPhoto, Profile } from '@/lib/types';
 import { bumpUsage } from '@/lib/usage';
@@ -40,6 +41,11 @@ export interface AppData {
   entries: Entry[];
   /** Inclui registros apagados (com `deletedAt`). Use `usePhotos()` para os ativos. */
   photos: NotebookPhoto[];
+  /**
+   * Visitas feitas à roça de outros produtores (roteiro de visita). Inclui as
+   * apagadas (com `deletedAt`). Use `usePeerVisits()` para as ativas.
+   */
+  peerVisits: Visita[];
   manualChecks: Partial<Record<ManualCheckId, boolean>>;
   lastVisitDate?: ISODate;
   lastExportAt?: ISODate;
@@ -87,6 +93,12 @@ interface AppActions {
   addPhoto: (photo: Omit<NotebookPhoto, 'updatedAt'>) => void;
   updatePhoto: (id: string, caption: string) => void;
   removePhoto: (id: string) => void;
+  /** Cria ou atualiza uma visita do roteiro. Cada mudança na tela passa por aqui e é salva na hora. */
+  savePeerVisit: (visit: Visita) => void;
+  /** Apaga (soft delete) e devolve a visita como estava. */
+  deletePeerVisit: (id: string) => Visita | undefined;
+  /** Desfaz o apagamento (botão "Desfazer"). */
+  restorePeerVisit: (id: string) => void;
   setManualCheck: (id: ManualCheckId, value: boolean) => void;
   setLastVisitDate: (date: ISODate | undefined) => void;
   /** Desmarca os itens que o produtor marca à mão (nova visita). */
@@ -116,6 +128,7 @@ const initialData: AppData = {
   crops: [],
   entries: [],
   photos: [],
+  peerVisits: [],
   manualChecks: {},
   cropUsage: {},
   fontSize: 'normal',
@@ -289,6 +302,28 @@ export const useApp = create<AppState>()(
           pendingChanges: track(st.pendingChanges, 'pagina', { id }, 'delete'),
         })),
 
+      savePeerVisit: (visit) =>
+        set((st) => ({
+          peerVisits: upsert(st.peerVisits, visit, nowISO()),
+          pendingChanges: track(st.pendingChanges, 'visita_par', visit),
+        })),
+
+      deletePeerVisit: (id) => {
+        const found = findLive(get().peerVisits, id);
+        if (!found) return undefined;
+        set((st) => ({
+          peerVisits: softDelete(st.peerVisits, id, nowISO()),
+          pendingChanges: track(st.pendingChanges, 'visita_par', found, 'delete'),
+        }));
+        return found;
+      },
+
+      restorePeerVisit: (id) =>
+        set((st) => ({
+          peerVisits: undelete(st.peerVisits, id, nowISO()),
+          pendingChanges: track(st.pendingChanges, 'visita_par', st.peerVisits.find((v) => v.id === id) ?? null),
+        })),
+
       setManualCheck: (id, value) =>
         set((st) => ({
           manualChecks: { ...st.manualChecks, [id]: value },
@@ -323,6 +358,8 @@ export const useApp = create<AppState>()(
           crops: data.crops,
           entries: data.entries,
           photos: keepPhotos ? get().photos : data.photos,
+          // Arquivo feito antes do roteiro de visita: as visitas do aparelho continuam.
+          peerVisits: data.peerVisits ?? get().peerVisits,
           manualChecks: data.manualChecks,
           lastVisitDate: data.lastVisitDate,
         };
@@ -360,6 +397,7 @@ export const useApp = create<AppState>()(
         crops: st.crops,
         entries: st.entries,
         photos: st.photos,
+        peerVisits: st.peerVisits,
         manualChecks: st.manualChecks,
         lastVisitDate: st.lastVisitDate,
         lastExportAt: st.lastExportAt,
@@ -393,6 +431,11 @@ export function usePhotos(): NotebookPhoto[] {
   return useApp(useShallow((s) => live(s.photos)));
 }
 
+/** Visitas do roteiro ativas (sem as apagadas), da mais recente para a mais antiga. */
+export function usePeerVisits(): Visita[] {
+  return useApp(useShallow((s) => live(s.peerVisits).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))));
+}
+
 /** Monta o conteúdo da cópia de segurança a partir do estado atual. */
 export function exportSnapshot(st: AppData, exportedAt: string): BackupData {
   return {
@@ -406,6 +449,7 @@ export function exportSnapshot(st: AppData, exportedAt: string): BackupData {
     photos: st.photos,
     manualChecks: st.manualChecks,
     lastVisitDate: st.lastVisitDate,
+    peerVisits: st.peerVisits,
   };
 }
 

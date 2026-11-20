@@ -3,6 +3,7 @@ import { parseISODate } from './dates';
 import { uuid } from './ids';
 import { isRelativeMediaPath, toRelativeMediaPath } from './media';
 import { type MigrationDeps, normalizeRecords } from './migrate';
+import { type Visita, normalizarVisita } from './roteiro';
 import type { ActivityKind, Area, Entry, ManualCheckId, NotebookPhoto, Profile } from './types';
 
 /** Versão atual do arquivo de cópia de segurança. */
@@ -12,6 +13,8 @@ export const BACKUP_VERSION = 2;
  * Dados do arquivo de cópia de segurança (`dados.json` dentro do .zip). As
  * fotos e os recados de voz vão como arquivos ao lado, em `midia/`.
  * A versão 1 (só JSON, sem mídia) continua sendo aceita na importação.
+ * `peerVisits` (visitas à roça de outros produtores) entrou depois, sem mudar a
+ * versão: arquivos sem esse campo continuam valendo e o app antigo o ignora.
  */
 export interface BackupData {
   app: 'caderno-de-bolso';
@@ -24,6 +27,8 @@ export interface BackupData {
   photos: NotebookPhoto[];
   manualChecks: Partial<Record<ManualCheckId, boolean>>;
   lastVisitDate?: string;
+  /** Ausente em arquivos feitos antes do roteiro de visita: aí as visitas do aparelho ficam como estão. */
+  peerVisits?: Visita[];
 }
 
 const ACTIVITY_KINDS: ActivityKind[] = ['plantio', 'adubacao', 'rega', 'manejo', 'colheita', 'venda', 'compra', 'outra'];
@@ -206,6 +211,12 @@ function parseBackupUnsafe(
   const lastVisitDate =
     typeof raw.lastVisitDate === 'string' && parseISODate(raw.lastVisitDate) ? raw.lastVisitDate : undefined;
 
+  if (raw.peerVisits !== undefined && !Array.isArray(raw.peerVisits))
+    return { ok: false, error: 'As visitas a outros produtores no arquivo estão com problema.' };
+  const peerVisits = Array.isArray(raw.peerVisits)
+    ? raw.peerVisits.map((v) => normalizarVisita(v, exportedAt)).filter((v): v is Visita => v !== null)
+    : undefined;
+
   return {
     ok: true,
     droppedMedia,
@@ -221,6 +232,7 @@ function parseBackupUnsafe(
       photos: normalized.photos as NotebookPhoto[],
       manualChecks,
       lastVisitDate,
+      ...(peerVisits ? { peerVisits } : {}),
     },
   };
 }

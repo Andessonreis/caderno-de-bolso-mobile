@@ -48,6 +48,7 @@ function emptyState(p: Partial<EngineState> = {}): EngineState {
     crops: [],
     entries: [],
     photos: [],
+    peerVisits: [],
     manualChecks: {},
     pendingChanges: [],
     sync,

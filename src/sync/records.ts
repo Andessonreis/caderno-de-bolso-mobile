@@ -5,6 +5,7 @@ import { type Change, type EntityKind, SINGLETON_IDS } from '@/data/repository';
 import { isArea, isEntry, isNotebookPhoto, isProfile } from '@/lib/backup';
 import { MANUAL_CHECKS } from '@/lib/catalog';
 import { parseISODate } from '@/lib/dates';
+import { type Visita, normalizarVisita } from '@/lib/roteiro';
 import type { Area, Entry, ISODate, ManualCheckId, NotebookPhoto, Profile } from '@/lib/types';
 
 /** Registro como o servidor recebe. */
@@ -33,6 +34,7 @@ export interface SyncedState {
   crops: string[];
   entries: Entry[];
   photos: NotebookPhoto[];
+  peerVisits: Visita[];
   manualChecks: Partial<Record<ManualCheckId, boolean>>;
   lastVisitDate?: ISODate;
   culturasUpdatedAt?: string;
@@ -95,6 +97,11 @@ export function toOutgoing(change: Change, st: SyncedState): OutgoingRecord | nu
       const p = st.photos.find((x) => x.id === change.recordId);
       if (!p) return null;
       return { ...base(p.updatedAt, p.deletedAt), dados: without(p, ['id', 'updatedAt', 'deletedAt']) };
+    }
+    case 'visita_par': {
+      const v = st.peerVisits.find((x) => x.id === change.recordId);
+      if (!v) return null;
+      return { ...base(v.updatedAt, v.deletedAt), dados: without(v, ['id', 'updatedAt', 'deletedAt']) };
     }
   }
 }
@@ -210,6 +217,15 @@ export function mergeRemote(st: SyncedState, remote: RemoteRecord[]): MergeResul
         const candidate = { ...d, ...meta(r) };
         if (!isNotebookPhoto(candidate)) break;
         next = { ...next, photos: upsertById(next.photos, candidate) };
+        break;
+      }
+      case 'visita_par': {
+        const local = next.peerVisits.find((v) => v.id === r.id);
+        if (local && !newer(r.atualizado_em, local.updatedAt)) break;
+        const candidate = normalizarVisita({ ...d, id: r.id });
+        if (!candidate || candidate.id !== r.id) break;
+        const { deletedAt: _deletedAt, ...rest } = candidate;
+        next = { ...next, peerVisits: upsertById(next.peerVisits, { ...rest, ...meta(r) }) };
         break;
       }
       default:
