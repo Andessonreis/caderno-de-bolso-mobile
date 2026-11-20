@@ -24,6 +24,12 @@ type Step = 'escolher' | 'camera' | 'confirmar' | 'ligando' | 'pronto';
  */
 export default function Ligar() {
   const params = useLocalSearchParams<{ c?: string; k?: string }>();
+  // O link pode chegar com esta tela já aberta. A chave refaz a tela com o código novo,
+  // para a confirmação aparecer do mesmo jeito.
+  return <LigarFlow key={`${params.c ?? ''}|${params.k ?? ''}`} params={params} />;
+}
+
+function LigarFlow({ params }: { params: { c?: string; k?: string } }) {
   const fromLink = params.c && params.k ? parseLink(`c=${params.c}&k=${params.k}`) : null;
   const hasOwnData = useApp((s) => Boolean(s.profile && !s.profile.exemplo) || s.entries.some((e) => !e.exemplo));
   const [step, setStep] = useState<Step>(fromLink ? 'confirmar' : 'escolher');

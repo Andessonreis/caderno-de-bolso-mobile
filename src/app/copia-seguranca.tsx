@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { useMemo, useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Modal, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/AppText';
@@ -8,7 +8,7 @@ import { Button } from '@/components/Button';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { EmptyState } from '@/components/EmptyState';
 import { Field } from '@/components/Field';
-import { Screen } from '@/components/Screen';
+import { KeyboardScroll, Screen } from '@/components/Screen';
 import { lastBackupDate } from '@/lib/checklist';
 import { formatRelativeDay, formatShortDate, today as todayISO } from '@/lib/dates';
 import {
@@ -34,7 +34,8 @@ function PhotoViewer({ photo, onClose }: { photo: NotebookPhoto | null; onClose:
   return (
     <Modal visible animationType="slide" onRequestClose={onClose}>
       <SafeAreaView style={styles.viewer}>
-        <ScrollView contentContainerStyle={styles.viewerContent} keyboardShouldPersistTaps="handled">
+        <KeyboardAvoidingView style={styles.viewerFlex} behavior="padding">
+          <KeyboardScroll contentContainerStyle={styles.viewerContent}>
           <AppText variant="heading" color={colors.white}>
             Página fotografada em {formatShortDate(photo.date)}
           </AppText>
@@ -65,7 +66,8 @@ function PhotoViewer({ photo, onClose }: { photo: NotebookPhoto | null; onClose:
             <Button label="Apagar foto" icon="trash-can-outline" variant="danger" onPress={() => setConfirm(true)} />
             <Button label="Fechar" icon="close" onPress={onClose} />
           </View>
-        </ScrollView>
+          </KeyboardScroll>
+        </KeyboardAvoidingView>
         <ConfirmDialog
           visible={confirm}
           title="Apagar esta foto?"
@@ -266,6 +268,7 @@ export default function CopiaSeguranca() {
 }
 
 const styles = StyleSheet.create({
+  viewerFlex: { flex: 1 },
   flex: { flex: 1 },
   row: { flexDirection: 'row', gap: space.sm, flexWrap: 'wrap' },
   status: { gap: 2, padding: space.lg, borderRadius: radius.lg, borderWidth: 1.5 },

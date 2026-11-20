@@ -27,3 +27,5 @@ export const useAudioRecorder = () => recorder;
 export const useAudioRecorderState = () => ({ isRecording: false, durationMillis: 0 });
 export const requestRecordingPermissionsAsync = () => Promise.resolve({ granted: false });
 export const setAudioModeAsync = () => Promise.resolve();
+export const IOSOutputFormat = { MPEG4AAC: 'aac ' };
+export const AudioQuality = { MIN: 0, LOW: 32, MEDIUM: 64, HIGH: 96, MAX: 127 };

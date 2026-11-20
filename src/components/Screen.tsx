@@ -1,7 +1,24 @@
-import { router } from 'expo-router';
-import type { ReactNode } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { router, useSegments } from 'expo-router';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ComponentRef,
+  type ReactNode,
+} from 'react';
+import {
+  Keyboard,
+  KeyboardAvoidingView,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+  type ScrollViewProps,
+} from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TOUCH_MIN, colors, space } from '@/theme';
 
@@ -23,6 +40,107 @@ interface ScreenProps {
   scroll?: boolean;
 }
 
+/** Qualquer coisa que saiba medir a própria posição dentro da rolagem (uma View ou um campo). */
+interface Measurable {
+  measureLayout: (relativeTo: never, onSuccess: (x: number, y: number) => void, onFail?: () => void) => void;
+}
+
+type Reveal = (target: Measurable | null, offset?: number) => void;
+
+const RevealContext = createContext<Reveal | null>(null);
+
+/** Dentro de um `KeyboardScroll`, devolve a função que rola a tela até o campo em foco. */
+export function useRevealOnFocus(): Reveal | null {
+  return useContext(RevealContext);
+}
+
+/**
+ * Espaço que os botões do próprio celular ocupam embaixo da tela (barra de
+ * navegação ou a faixa do gesto). Nas abas é zero, porque a barra de abas já
+ * fica acima deles.
+ */
+export function useBottomInset(): number {
+  const insets = useSafeAreaInsets();
+  const inTabs = (useSegments() as string[])[0] === '(tabs)';
+  return inTabs ? 0 : insets.bottom;
+}
+
+/** Diz se o teclado está aberto. */
+export function useKeyboardOpen(): boolean {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', () => setOpen(true));
+    const hide = Keyboard.addListener('keyboardDidHide', () => setOpen(false));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+  return open;
+}
+
+/**
+ * Rolagem para telas com campos de texto. Quando um campo ganha foco, ele sobe
+ * para perto do topo da área visível, acima do teclado, com o rótulo à mostra.
+ * Arrastar a tela fecha o teclado.
+ */
+export function KeyboardScroll({ children, ...props }: ScrollViewProps) {
+  const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
+  const focused = useRef<{ target: Measurable; offset: number } | null>(null);
+
+  const scrollToFocused = useCallback(() => {
+    const f = focused.current;
+    const scroll = scrollRef.current;
+    const inner = scroll?.getInnerViewRef();
+    if (!f || !scroll || !inner) return;
+    f.target.measureLayout(
+      inner as never,
+      (_x, y) => scroll.scrollTo({ y: Math.max(0, y - f.offset), animated: true }),
+      () => undefined,
+    );
+  }, []);
+
+  const reveal = useCallback<Reveal>(
+    (target, offset = 12) => {
+      if (!target) return;
+      focused.current = { target, offset };
+      // Um instante para o teclado começar a subir e a área visível encolher.
+      setTimeout(scrollToFocused, 120);
+    },
+    [scrollToFocused],
+  );
+
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', () => setTimeout(scrollToFocused, 50));
+    const hide = Keyboard.addListener('keyboardDidHide', () => {
+      focused.current = null;
+    });
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, [scrollToFocused]);
+
+  return (
+    <RevealContext.Provider value={reveal}>
+      <ScrollView
+        ref={scrollRef}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        // O Android também tenta rolar até o campo em foco; fica só a nossa rolagem.
+        scrollsChildToFocus={false}
+        {...props}
+        onLayout={(e) => {
+          // A área visível encolhe quando o teclado termina de subir: confere o campo de novo.
+          if (focused.current) scrollToFocused();
+          props.onLayout?.(e);
+        }}>
+        {children}
+      </ScrollView>
+    </RevealContext.Provider>
+  );
+}
+
 export function BackButton({ onPress, label = 'Voltar' }: { onPress: () => void; label?: string }) {
   return (
     <Pressable
@@ -40,6 +158,10 @@ export function BackButton({ onPress, label = 'Voltar' }: { onPress: () => void;
 }
 
 export function Screen({ title, subtitle, back, onBack, backLabel, footer, top, children, scroll = true }: ScreenProps) {
+  const keyboardOpen = useKeyboardOpen();
+  // Com o teclado aberto, ele cobre os botões do celular: não precisa do espaço extra.
+  const bottomInset = useBottomInset();
+  const bottom = keyboardOpen ? 0 : bottomInset;
   const goBack = onBack ?? (() => (router.canGoBack() ? router.back() : router.replace('/')));
   const header = (
     <View style={styles.header}>
@@ -60,22 +182,30 @@ export function Screen({ title, subtitle, back, onBack, backLabel, footer, top, 
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      {/* 'padding' também no Android: com a tela de ponta a ponta, o sistema não encolhe a janela sozinho. */}
+      <KeyboardAvoidingView style={styles.flex} behavior="padding">
         {scroll ? (
-          <ScrollView
+          <KeyboardScroll
             style={styles.flex}
-            contentContainerStyle={styles.content}
-            keyboardShouldPersistTaps="handled">
+            contentContainerStyle={[styles.content, !footer && { paddingBottom: space.xxl + bottom }]}>
             {header}
             {children}
-          </ScrollView>
+          </KeyboardScroll>
         ) : (
-          <View style={[styles.flex, styles.content]}>
+          <View style={[styles.flex, styles.content, !footer && { paddingBottom: space.xxl + bottom }]}>
             {header}
             {children}
           </View>
         )}
-        {footer ? <View style={styles.footer}>{footer}</View> : null}
+        {footer ? (
+          <View
+            style={[
+              styles.footer,
+              keyboardOpen ? styles.footerCompact : { paddingBottom: space.lg + bottom },
+            ]}>
+            {footer}
+          </View>
+        ) : null}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -106,4 +236,6 @@ const styles = StyleSheet.create({
     borderTopColor: colors.line,
     backgroundColor: colors.paper,
   },
+  // Com o teclado aberto sobra pouco espaço: o rodapé fica mais baixo, mas continua ao alcance.
+  footerCompact: { paddingVertical: space.sm },
 });

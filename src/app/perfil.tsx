@@ -1,10 +1,10 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
-import { Field } from '@/components/Field';
+import { Field, type FieldInput } from '@/components/Field';
 import {
   PROFILE_LIMITS,
   ProfileBasicFields,
@@ -23,6 +23,8 @@ export default function Perfil() {
   const updateProfile = useApp((s) => s.updateProfile);
   const [p, setP] = useState<Profile>(() => stored ?? { name: '' });
 
+  const certRef = useRef<FieldInput>(null);
+  const traceRef = useRef<FieldInput>(null);
   const nameOk = p.name.trim().length > 0;
   const yearOk = validCertYear(p.certifiedSince, new Date().getFullYear());
 
@@ -53,8 +55,8 @@ export default function Perfil() {
         </>
       }>
       <View style={{ gap: space.xl }}>
-        <ProfileBasicFields value={p} onChange={setP} />
-        <ProfileCertFields value={p} onChange={setP} />
+        <ProfileBasicFields value={p} onChange={setP} nextRef={certRef} />
+        <ProfileCertFields value={p} onChange={setP} firstRef={certRef} nextRef={traceRef} />
         <Field
           label="Código do sistema de rastreio que já uso"
           optional
@@ -63,6 +65,7 @@ export default function Perfil() {
           onChangeText={(traceCode) => setP({ ...p, traceCode })}
           autoCapitalize="characters"
           maxLength={PROFILE_LIMITS.traceCode}
+          inputRef={traceRef}
         />
       </View>
     </Screen>

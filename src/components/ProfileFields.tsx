@@ -1,9 +1,10 @@
+import { useRef, type RefObject } from 'react';
 import { View } from 'react-native';
 
 import type { Profile } from '@/lib/types';
 import { space } from '@/theme';
 
-import { Field } from './Field';
+import { Field, type FieldInput } from './Field';
 
 /** Limites de tamanho iguais aos que o site aceita na ficha. */
 export const PROFILE_LIMITS = {
@@ -19,9 +20,14 @@ export const PROFILE_LIMITS = {
 interface Props {
   value: Profile;
   onChange: (p: Profile) => void;
+  /** Primeiro campo do grupo, para o grupo anterior passar o foco para cá. */
+  firstRef?: RefObject<FieldInput | null>;
+  /** Campo que recebe o foco depois do último deste grupo. */
+  nextRef?: RefObject<FieldInput | null>;
 }
 
-export function ProfileBasicFields({ value, onChange }: Props) {
+export function ProfileBasicFields({ value, onChange, firstRef, nextRef }: Props) {
+  const municipality = useRef<FieldInput>(null);
   return (
     <View style={{ gap: space.lg }}>
       <Field
@@ -32,7 +38,8 @@ export function ProfileBasicFields({ value, onChange }: Props) {
         autoCapitalize="words"
         autoComplete="name"
         maxLength={PROFILE_LIMITS.name}
-        returnKeyType="next"
+        inputRef={firstRef}
+        next={municipality}
       />
       <Field
         label="Município"
@@ -42,12 +49,20 @@ export function ProfileBasicFields({ value, onChange }: Props) {
         onChangeText={(municipality) => onChange({ ...value, municipality })}
         autoCapitalize="words"
         maxLength={PROFILE_LIMITS.municipality}
+        inputRef={municipality}
+        next={nextRef}
       />
     </View>
   );
 }
 
-export function ProfileCertFields({ value, onChange }: Props) {
+export function ProfileCertFields({ value, onChange, firstRef, nextRef }: Props) {
+  const own = useRef<FieldInput>(null);
+  const cooperative = firstRef ?? own;
+  const opac = useRef<FieldInput>(null);
+  const certificateId = useRef<FieldInput>(null);
+  const since = useRef<FieldInput>(null);
+  const registry = useRef<FieldInput>(null);
   return (
     <View style={{ gap: space.lg }}>
       <Field
@@ -57,6 +72,8 @@ export function ProfileCertFields({ value, onChange }: Props) {
         onChangeText={(cooperative) => onChange({ ...value, cooperative })}
         autoCapitalize="words"
         maxLength={PROFILE_LIMITS.cooperative}
+        inputRef={cooperative}
+        next={opac}
       />
       <Field
         label="Quem certifica (OPAC)"
@@ -65,6 +82,8 @@ export function ProfileCertFields({ value, onChange }: Props) {
         value={value.opac ?? ''}
         onChangeText={(opac) => onChange({ ...value, opac })}
         maxLength={PROFILE_LIMITS.opac}
+        inputRef={opac}
+        next={certificateId}
       />
       <Field
         label="Número ou identificação do certificado"
@@ -73,6 +92,8 @@ export function ProfileCertFields({ value, onChange }: Props) {
         onChangeText={(certificateId) => onChange({ ...value, certificateId })}
         autoCapitalize="characters"
         maxLength={PROFILE_LIMITS.certificateId}
+        inputRef={certificateId}
+        next={since}
       />
       <Field
         label="Certificado desde (ano)"
@@ -80,6 +101,8 @@ export function ProfileCertFields({ value, onChange }: Props) {
         placeholder="Ex.: 2020"
         keyboardType="number-pad"
         maxLength={4}
+        inputRef={since}
+        next={registry}
         value={value.certifiedSince ? String(value.certifiedSince) : ''}
         onChangeText={(t) => {
           const digits = t.replace(/\D/g, '');
@@ -93,6 +116,8 @@ export function ProfileCertFields({ value, onChange }: Props) {
         onChangeText={(nationalRegistry) => onChange({ ...value, nationalRegistry })}
         autoCapitalize="characters"
         maxLength={PROFILE_LIMITS.nationalRegistry}
+        inputRef={registry}
+        next={nextRef}
       />
     </View>
   );

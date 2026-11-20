@@ -1,4 +1,3 @@
-import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, SectionList, StyleSheet, View } from 'react-native';
@@ -7,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppText } from '@/components/AppText';
 import { AudioNote } from '@/components/AudioNote';
 import { Button } from '@/components/Button';
+import { PhotoThumb } from '@/components/PhotoThumb';
 import { ChipGroup } from '@/components/ChipGroup';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { EmptyState } from '@/components/EmptyState';
@@ -14,7 +14,7 @@ import { Icon } from '@/components/Icon';
 import { Snackbar } from '@/components/Snackbar';
 import { ACTIVITIES, capitalize } from '@/lib/catalog';
 import { formatRelativeDay, today as todayISO } from '@/lib/dates';
-import { deleteMediaFile, mediaUri } from '@/lib/device';
+import { deleteMediaFile } from '@/lib/device';
 import { type HistoryFilter, filterEntries, groupByDay } from '@/lib/history';
 import { describeDetails, describeWhat, inArea } from '@/lib/sentence';
 import { areaNameOf } from '@/lib/summary';
@@ -164,7 +164,7 @@ export default function Caderno() {
             <View style={styles.item}>
               <View style={styles.itemTop}>
                 {item.photo ? (
-                  <Image source={{ uri: mediaUri(item.photo) }} style={styles.thumb} contentFit="cover" accessibilityLabel="Foto" />
+                  <PhotoThumb file={item.photo} style={styles.thumb} />
                 ) : null}
                 <View style={styles.flex}>
                   <AppText variant="small" color={colors.inkMuted}>

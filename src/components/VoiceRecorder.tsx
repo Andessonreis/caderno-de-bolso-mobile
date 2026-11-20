@@ -1,5 +1,7 @@
 import {
-  RecordingPresets,
+  AudioQuality,
+  IOSOutputFormat,
+  type RecordingOptions,
   requestRecordingPermissionsAsync,
   setAudioModeAsync,
   useAudioRecorder,
@@ -16,6 +18,26 @@ import { AudioNote, formatClock } from './AudioNote';
 import { Button } from './Button';
 import { ProgressBar } from './StepProgress';
 
+/**
+ * Voz em AAC dentro de .m4a, mono e leve: toca em qualquer celular e é o formato
+ * que a cópia na internet aceita. Um minuto fica perto de 250 KB.
+ */
+const VOICE_NOTE: RecordingOptions = {
+  extension: '.m4a',
+  sampleRate: 22050,
+  numberOfChannels: 1,
+  bitRate: 32000,
+  android: { outputFormat: 'mpeg4', audioEncoder: 'aac' },
+  ios: {
+    outputFormat: IOSOutputFormat.MPEG4AAC,
+    audioQuality: AudioQuality.MEDIUM,
+    linearPCMBitDepth: 16,
+    linearPCMIsBigEndian: false,
+    linearPCMIsFloat: false,
+  },
+  web: { mimeType: 'audio/webm', bitsPerSecond: 32000 },
+};
+
 /** Limite de cada recado, em segundos. */
 export const MAX_RECORDING_SECONDS = 60;
 
@@ -30,7 +52,7 @@ interface VoiceRecorderProps {
 
 /** Gravar (tocar para começar e para parar), ouvir, apagar e regravar um recado de voz. */
 export function VoiceRecorder({ value, seconds, onRecorded, onRemove }: VoiceRecorderProps) {
-  const recorder = useAudioRecorder(RecordingPresets.LOW_QUALITY);
+  const recorder = useAudioRecorder(VOICE_NOTE);
   const state = useAudioRecorderState(recorder, 250);
   const [active, setActive] = useState(false);
   const [busy, setBusy] = useState(false);

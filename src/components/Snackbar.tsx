@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { TOUCH_MIN, colors, radius, space } from '@/theme';
 
 import { AppText } from './AppText';
+import { useBottomInset } from './Screen';
 
 interface SnackbarProps {
   message: string | null;
@@ -16,6 +17,7 @@ interface SnackbarProps {
 
 /** Aviso no rodapé com ação opcional (ex.: "Desfazer"). */
 export function Snackbar({ message, actionLabel, onAction, onHide, duration = 7000 }: SnackbarProps) {
+  const bottomInset = useBottomInset();
   useEffect(() => {
     if (!message) return;
     const t = setTimeout(onHide, duration);
@@ -24,7 +26,7 @@ export function Snackbar({ message, actionLabel, onAction, onHide, duration = 70
 
   if (!message) return null;
   return (
-    <View style={styles.wrap} pointerEvents="box-none">
+    <View style={[styles.wrap, { bottom: space.md + bottomInset }]} pointerEvents="box-none">
       <View style={styles.bar} accessibilityLiveRegion="assertive" accessibilityRole="alert">
         <AppText variant="label" color={colors.white} style={styles.msg}>
           {message}

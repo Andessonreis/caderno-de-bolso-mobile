@@ -1,5 +1,5 @@
 import { Redirect, Tabs, router } from 'expo-router';
-import { Pressable, StyleSheet, View, type ColorValue } from 'react-native';
+import { Pressable, StyleSheet, View, type ColorValue, type StyleProp, type ViewStyle } from 'react-native';
 
 import { AppText } from '@/components/AppText';
 import { Icon, type IconName } from '@/components/Icon';
@@ -13,22 +13,29 @@ function tabIcon(name: IconName, active: IconName) {
   return TabIcon;
 }
 
-/** Botão central "Anotar", maior e em destaque na barra de baixo. */
-function AnotarTabButton() {
+/**
+ * Botão central "Anotar", maior e em destaque na barra de baixo. A área de toque
+ * é a casa inteira da aba, do mesmo tamanho das outras, mais a parte do quadro
+ * verde que sobe acima da barra.
+ */
+function AnotarTabButton({ style }: { style?: StyleProp<ViewStyle> }) {
   return (
-    <View style={styles.centerWrap}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Anotar"
-        accessibilityHint="Abre o passo a passo para anotar uma atividade"
-        onPress={() => router.push('/anotar')}
-        style={({ pressed }) => [styles.center, pressed && { backgroundColor: colors.leafPressed }]}>
-        <Icon name="pencil-plus" size={30} color={colors.onLeaf} />
-        <AppText variant="small" color={colors.onLeaf} style={styles.centerLabel} maxFontSizeMultiplier={1.2}>
-          Anotar
-        </AppText>
-      </Pressable>
-    </View>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Anotar"
+      accessibilityHint="Abre o passo a passo para anotar uma atividade"
+      onPress={() => router.push('/anotar')}
+      hitSlop={{ top: 20 }}
+      style={[style, styles.centerWrap]}>
+      {({ pressed }) => (
+        <View pointerEvents="none" style={[styles.center, pressed && { backgroundColor: colors.leafPressed }]}>
+          <Icon name="pencil-plus" size={30} color={colors.onLeaf} />
+          <AppText variant="small" color={colors.onLeaf} style={styles.centerLabel} maxFontSizeMultiplier={1.2}>
+            Anotar
+          </AppText>
+        </View>
+      )}
+    </Pressable>
   );
 }
 
@@ -57,7 +64,7 @@ export default function TabsLayout() {
         name="nova"
         options={{
           title: 'Anotar',
-          tabBarButton: () => <AnotarTabButton />,
+          tabBarButton: ({ style }) => <AnotarTabButton style={style} />,
         }}
       />
       <Tabs.Screen
@@ -86,7 +93,7 @@ const styles = StyleSheet.create({
   },
   item: { minHeight: 56 },
   label: { fontSize: 13, fontWeight: '600', maxWidth: 80 },
-  centerWrap: { flex: 1, alignItems: 'center', justifyContent: 'flex-start' },
+  centerWrap: { flex: 1, alignSelf: 'stretch', minHeight: 56, alignItems: 'center', justifyContent: 'flex-start' },
   center: {
     marginTop: -18,
     width: 72,

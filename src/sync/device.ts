@@ -58,11 +58,21 @@ export function createMediaTransport(api: SyncApi): MediaTransport {
       let type = contentTypeFor(relative);
       let temp: File | null = null;
       // Formato que o servidor não aceita (ex.: foto antiga em HEIC) ou foto grande: vira JPEG reduzido.
-      if (!type || (type.startsWith('image/') && (file.size ?? 0) > 1_500_000)) {
-        temp = new File(await compressImage(file.uri));
+      const isAudio = relative.startsWith('audios/');
+      // Recado num formato que o servidor não aceita (gravações antigas em .3gp): fica só
+      // neste celular. Não pode travar o envio do resto do caderno.
+      if (isAudio && !type) return;
+      if (!isAudio && (!type || (file.size ?? 0) > 1_500_000)) {
+        try {
+          temp = new File(await compressImage(file.uri));
+        } catch {
+          // Foto que não dá para abrir: também fica só neste celular.
+          return;
+        }
         source = temp;
         type = 'image/jpeg';
       }
+      if (!type) return;
       try {
         const res = await source.upload(api.mediaUrl(c, remoteMediaName(relative)), {
           httpMethod: 'POST',

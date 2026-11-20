@@ -1,12 +1,12 @@
-import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, BackHandler, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
+import { PhotoThumb } from '@/components/PhotoThumb';
 import { ChoiceTile } from '@/components/ChoiceTile';
-import { Field } from '@/components/Field';
+import { Field, type FieldInput } from '@/components/Field';
 import { Icon } from '@/components/Icon';
 import { NumberPad } from '@/components/NumberPad';
 import { Screen } from '@/components/Screen';
@@ -25,7 +25,7 @@ import {
   unitText,
 } from '@/lib/catalog';
 import { addDays, formatLongDate, today as todayISO } from '@/lib/dates';
-import { deleteMediaFile, errorMessage, hapticSuccess, mediaUri, takePhoto } from '@/lib/device';
+import { deleteMediaFile, errorMessage, hapticSuccess, takePhoto } from '@/lib/device';
 import { applyEdit } from '@/lib/edit';
 import { formatMoney, numberToInput, parseDecimal } from '@/lib/format';
 import { describeEntry, quantityText } from '@/lib/sentence';
@@ -109,6 +109,7 @@ export default function Anotar() {
   const [pickingDay, setPickingDay] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [reopened, setReopened] = useState(false);
+  const noteRef = useRef<FieldInput>(null);
   /** Foto da anotação ao abrir a tela (edição). Só é apagada depois de confirmada a troca. */
   const original = useRef<MediaRefs>({ photo: editing?.photo, audio: editing?.audio });
   /** Foto que ficou salva na última gravação. */
@@ -827,6 +828,7 @@ export default function Anotar() {
           value={draft.variety ?? ''}
           onChangeText={(variety) => set({ variety })}
           maxLength={40}
+          next={noteRef}
         />
       ) : null}
 
@@ -837,6 +839,7 @@ export default function Anotar() {
         value={draft.note ?? ''}
         onChangeText={(note) => set({ note })}
         maxLength={120}
+        inputRef={noteRef}
       />
 
       <View style={styles.block}>
@@ -848,7 +851,7 @@ export default function Anotar() {
         <AppText variant="label">Foto (se quiser)</AppText>
         {draft.photo ? (
           <View style={styles.photoRow}>
-            <Image source={{ uri: mediaUri(draft.photo) }} style={styles.thumb} contentFit="cover" accessibilityLabel="Foto da anotação" />
+            <PhotoThumb file={draft.photo} style={styles.thumb} />
             <Button label="Tirar a foto" variant="danger" icon="close" style={styles.flex} onPress={removePhoto} />
           </View>
         ) : (
