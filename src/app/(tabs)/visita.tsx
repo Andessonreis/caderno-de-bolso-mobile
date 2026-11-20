@@ -5,6 +5,7 @@ import { Alert, StyleSheet, View } from 'react-native';
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
 import { CheckRow } from '@/components/CheckRow';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { DateStepper } from '@/components/DateStepper';
 import { Icon } from '@/components/Icon';
 import { Screen } from '@/components/Screen';
@@ -68,9 +69,20 @@ export default function Visita() {
   const lastExportAt = useApp((s) => s.lastExportAt);
   const setManualCheck = useApp((s) => s.setManualCheck);
   const setLastVisitDate = useApp((s) => s.setLastVisitDate);
+  const resetManualChecks = useApp((s) => s.resetManualChecks);
 
   const today = todayISO();
   const [editingVisit, setEditingVisit] = useState(false);
+  /** Data antes de começar a mudar, para saber se mudou de verdade. */
+  const [dateBefore, setDateBefore] = useState<string | undefined>(undefined);
+  const [askReset, setAskReset] = useState(false);
+  const anyManualChecked = Object.values(manualChecks).some(Boolean);
+
+  const finishEditing = (newDate: string | undefined) => {
+    setEditingVisit(false);
+    // Visita nova: os itens marcados à mão eram da visita anterior.
+    if (newDate !== dateBefore && anyManualChecked) setAskReset(true);
+  };
   const [busy, setBusy] = useState(false);
   const checklist = computeChecklist({ entries, photos, manual: manualChecks, lastVisitDate, lastExportAt, today });
   const autoItems = checklist.items.filter((i) => i.auto);
@@ -121,14 +133,14 @@ export default function Visita() {
               max={today}
               onChange={(d) => setLastVisitDate(d)}
             />
-            <Button label="Pronto" icon="check" onPress={() => setEditingVisit(false)} />
+            <Button label="Pronto" icon="check" onPress={() => finishEditing(lastVisitDate)} />
             {lastVisitDate ? (
               <Button
                 label="Não lembro a data"
                 variant="quiet"
                 onPress={() => {
                   setLastVisitDate(undefined);
-                  setEditingVisit(false);
+                  finishEditing(undefined);
                 }}
               />
             ) : null}
@@ -139,6 +151,7 @@ export default function Visita() {
             variant="secondary"
             icon="calendar-edit"
             onPress={() => {
+              setDateBefore(lastVisitDate);
               if (!lastVisitDate) setLastVisitDate(addDays(today, -DEFAULT_PERIOD_DAYS));
               setEditingVisit(true);
             }}
@@ -174,6 +187,19 @@ export default function Visita() {
       <AppText variant="small" color={colors.inkMuted}>
         O PDF leva seus dados, esta lista e as anotações {periodLabel}.
       </AppText>
+
+      <ConfirmDialog
+        visible={askReset}
+        title="Desmarcar os itens que você marcou?"
+        message="A data da última visita mudou. Os itens que você marca à mão (notas, declarações, plano de manejo...) eram da visita anterior. Quer desmarcar para conferir de novo?"
+        confirmLabel="Sim, desmarcar"
+        cancelLabel="Não, deixar marcados"
+        onConfirm={() => {
+          resetManualChecks();
+          setAskReset(false);
+        }}
+        onCancel={() => setAskReset(false)}
+      />
     </Screen>
   );
 }

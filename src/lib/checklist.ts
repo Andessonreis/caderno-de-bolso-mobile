@@ -103,16 +103,14 @@ export function checkInputs(periodEntries: Entry[]): CheckItem {
 export function checkHarvestAndSales(periodEntries: Entry[]): CheckItem {
   const harvests = periodEntries.filter((e) => e.activity === 'colheita').length;
   const sales = periodEntries.filter((e) => e.activity === 'venda').length;
-  const problems: string[] = [];
-  if (!harvests) problems.push('Nenhuma colheita anotada no período.');
-  if (!sales) problems.push('Nenhuma venda anotada no período. Se não vendeu nada, tudo bem.');
   return {
     id: 'colheita-venda',
     label: 'Colheitas e vendas anotadas',
     auto: true,
-    done: harvests > 0 && sales > 0,
-    why: `${plural(harvests, 'colheita', 'colheitas')} e ${plural(sales, 'venda', 'vendas')} no período. Ajuda a mostrar que o que foi vendido saiu da sua roça.`,
-    missing: problems.length ? problems.join(' ') : undefined,
+    // Basta ter colheita: sem venda no período, tudo bem.
+    done: harvests > 0,
+    why: `${plural(harvests, 'colheita', 'colheitas')} e ${plural(sales, 'venda', 'vendas')} no período. Ajuda a mostrar que o que foi vendido saiu da sua roça. Se não vendeu nada, tudo bem.`,
+    missing: harvests ? undefined : 'Nenhuma colheita anotada no período.',
   };
 }
 
