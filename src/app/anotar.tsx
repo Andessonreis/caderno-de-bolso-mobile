@@ -11,6 +11,7 @@ import { Icon } from '@/components/Icon';
 import { NumberPad } from '@/components/NumberPad';
 import { Screen } from '@/components/Screen';
 import { StepProgress } from '@/components/StepProgress';
+import { VoiceRecorder } from '@/components/VoiceRecorder';
 import {
   ACTIVITIES,
   DESTINATIONS,
@@ -24,13 +25,13 @@ import {
   unitText,
 } from '@/lib/catalog';
 import { addDays, formatLongDate, today as todayISO } from '@/lib/dates';
-import { deletePhotoFile, errorMessage, hapticSuccess, photoUri, takePhoto } from '@/lib/device';
+import { deleteMediaFile, errorMessage, hapticSuccess, mediaUri, takePhoto } from '@/lib/device';
 import { applyEdit } from '@/lib/edit';
 import { formatMoney, numberToInput, parseDecimal } from '@/lib/format';
 import { describeEntry, quantityText } from '@/lib/sentence';
 import type { ActivityKind, Entry, ISODate, Unit } from '@/lib/types';
 import { lastUnitFor, rankByUsage } from '@/lib/usage';
-import { newId, useApp } from '@/store';
+import { newId, useApp, useAreas, useEntries } from '@/store';
 import { TOUCH_MIN, colors, radius, space } from '@/theme';
 
 type Step =
@@ -47,7 +48,11 @@ type Step =
   | 'revisao'
   | 'feito';
 
-type Draft = Partial<Omit<Entry, 'id' | 'createdAt' | 'copied'>>;
+type Draft = Partial<Omit<Entry, 'id' | 'createdAt' | 'updatedAt' | 'deletedAt' | 'copied'>>;
+
+/** Arquivos ligados à anotação: foto e recado de voz. */
+const MEDIA_KEYS = ['photo', 'audio'] as const;
+type MediaRefs = Partial<Record<(typeof MEDIA_KEYS)[number], string>>;
 
 /** Passos de detalhe de cada atividade, um assunto por tela. */
 function detailSteps(activity: ActivityKind | undefined): Step[] {
@@ -74,9 +79,9 @@ function quantityRequired(activity: ActivityKind | undefined): boolean {
 
 export default function Anotar() {
   const { id } = useLocalSearchParams<{ id?: string }>();
-  const areas = useApp((s) => s.areas);
+  const areas = useAreas();
   const crops = useApp((s) => s.crops);
-  const entries = useApp((s) => s.entries);
+  const entries = useEntries();
   const cropUsage = useApp((s) => s.cropUsage);
   const lastAreaId = useApp((s) => s.lastAreaId);
   const addEntry = useApp((s) => s.addEntry);
@@ -85,7 +90,7 @@ export default function Anotar() {
   const setCrops = useApp((s) => s.setCrops);
 
   // Cópia da anotação como estava ao abrir, para "Desfazer" uma edição.
-  const [editing] = useState(() => (id ? useApp.getState().entries.find((e) => e.id === id) : undefined));
+  const [editing] = useState(() => (id ? useApp.getState().entries.find((e) => e.id === id && !e.deletedAt) : undefined));
   const isEdit = Boolean(editing);
   const today = todayISO();
 
@@ -105,9 +110,9 @@ export default function Anotar() {
   const [photoBusy, setPhotoBusy] = useState(false);
   const [reopened, setReopened] = useState(false);
   /** Foto da anotação ao abrir a tela (edição). Só é apagada depois de confirmada a troca. */
-  const originalPhoto = useRef(editing?.photo);
+  const original = useRef<MediaRefs>({ photo: editing?.photo, audio: editing?.audio });
   /** Foto que ficou salva na última gravação. */
-  const savedPhoto = useRef<string | undefined>(undefined);
+  const saved = useRef<MediaRefs>({});
 
   const flow: Step[] = useMemo(() => {
     const base: Step[] = singleArea && !isEdit ? [] : ['area'];
@@ -152,14 +157,15 @@ export default function Anotar() {
   };
 
   const leave = () => {
-    if (savedId) {
-      // Saiu da tela "feito" sem desfazer: a troca de foto está confirmada.
-      if (isEdit && originalPhoto.current && originalPhoto.current !== savedPhoto.current) {
-        deletePhotoFile(originalPhoto.current);
+    for (const k of MEDIA_KEYS) {
+      const before = original.current[k];
+      if (savedId) {
+        // Saiu da tela "feito" sem desfazer: a troca de foto ou recado está confirmada.
+        if (isEdit && before && before !== saved.current[k]) deleteMediaFile(before);
+      } else if (draft[k] && draft[k] !== before) {
+        // Foto ou recado feito e não salvo: apaga para não ocupar espaço.
+        deleteMediaFile(draft[k]);
       }
-    } else if (draft.photo && draft.photo !== originalPhoto.current) {
-      // Foto tirada e não salva: apaga para não ocupar espaço.
-      deletePhotoFile(draft.photo);
     }
     navigateAway();
   };
@@ -206,7 +212,10 @@ export default function Anotar() {
       quantity: qty,
       unit: qty !== undefined ? draft.unit ?? info.units[0] : undefined,
       note: draft.note?.trim() || undefined,
+      updatedAt: new Date().toISOString(),
       photo: draft.photo,
+      audio: draft.audio,
+      audioSeconds: draft.audio ? draft.audioSeconds : undefined,
     };
     if (draft.activity === 'plantio') {
       e.variety = draft.variety?.trim() || undefined;
@@ -240,7 +249,7 @@ export default function Anotar() {
       addEntry(e);
     }
     hapticSuccess();
-    savedPhoto.current = e.photo;
+    saved.current = { photo: e.photo, audio: e.audio };
     setSavedId(e.id);
     setStep('feito');
   };
@@ -248,10 +257,13 @@ export default function Anotar() {
   const undo = () => {
     if (!savedId) return;
     if (isEdit) {
-      // Desfazer edição: volta a anotação como estava (com a foto original,
-      // que ainda não foi apagada) e descarta a foto nova.
+      // Desfazer edição: volta a anotação como estava (com a foto e o recado
+      // originais, que ainda não foram apagados) e descarta os novos.
       if (editing) updateEntry(editing);
-      if (savedPhoto.current && savedPhoto.current !== originalPhoto.current) deletePhotoFile(savedPhoto.current);
+      for (const k of MEDIA_KEYS) {
+        const now = saved.current[k];
+        if (now && now !== original.current[k]) deleteMediaFile(now);
+      }
       navigateAway();
       return;
     }
@@ -275,7 +287,7 @@ export default function Anotar() {
     try {
       const file = await takePhoto(source, 'anotacoes');
       if (file) {
-        if (draft.photo && draft.photo !== originalPhoto.current) deletePhotoFile(draft.photo);
+        if (draft.photo && draft.photo !== original.current.photo) deleteMediaFile(draft.photo);
         set({ photo: file });
       }
     } catch (err) {
@@ -286,8 +298,18 @@ export default function Anotar() {
   };
 
   const removePhoto = () => {
-    if (draft.photo && draft.photo !== originalPhoto.current) deletePhotoFile(draft.photo);
+    if (draft.photo && draft.photo !== original.current.photo) deleteMediaFile(draft.photo);
     set({ photo: undefined });
+  };
+
+  const setAudio = (file: string, seconds: number) => {
+    if (draft.audio && draft.audio !== original.current.audio) deleteMediaFile(draft.audio);
+    set({ audio: file, audioSeconds: seconds });
+  };
+
+  const removeAudio = () => {
+    if (draft.audio && draft.audio !== original.current.audio) deleteMediaFile(draft.audio);
+    set({ audio: undefined, audioSeconds: undefined });
   };
 
   const progress =
@@ -818,10 +840,15 @@ export default function Anotar() {
       />
 
       <View style={styles.block}>
+        <AppText variant="label">Recado de voz (se quiser)</AppText>
+        <VoiceRecorder value={draft.audio} seconds={draft.audioSeconds} onRecorded={setAudio} onRemove={removeAudio} />
+      </View>
+
+      <View style={styles.block}>
         <AppText variant="label">Foto (se quiser)</AppText>
         {draft.photo ? (
           <View style={styles.photoRow}>
-            <Image source={{ uri: photoUri(draft.photo) }} style={styles.thumb} contentFit="cover" accessibilityLabel="Foto da anotação" />
+            <Image source={{ uri: mediaUri(draft.photo) }} style={styles.thumb} contentFit="cover" accessibilityLabel="Foto da anotação" />
             <Button label="Tirar a foto" variant="danger" icon="close" style={styles.flex} onPress={removePhoto} />
           </View>
         ) : (
