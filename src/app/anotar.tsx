@@ -24,7 +24,8 @@ import {
   unitText,
 } from '@/lib/catalog';
 import { addDays, formatLongDate, today as todayISO } from '@/lib/dates';
-import { deletePhotoFile, errorMessage, hapticSuccess, takePhoto } from '@/lib/device';
+import { deletePhotoFile, errorMessage, hapticSuccess, photoUri, takePhoto } from '@/lib/device';
+import { applyEdit } from '@/lib/edit';
 import { formatMoney, numberToInput, parseDecimal } from '@/lib/format';
 import { describeEntry, quantityText } from '@/lib/sentence';
 import type { ActivityKind, Entry, ISODate, Unit } from '@/lib/types';
@@ -102,7 +103,11 @@ export default function Anotar() {
   const [otherCrop, setOtherCrop] = useState('');
   const [pickingDay, setPickingDay] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
-  const originalPhoto = useRef(editing?.photoUri);
+  const [reopened, setReopened] = useState(false);
+  /** Foto da anotação ao abrir a tela (edição). Só é apagada depois de confirmada a troca. */
+  const originalPhoto = useRef(editing?.photo);
+  /** Foto que ficou salva na última gravação. */
+  const savedPhoto = useRef<string | undefined>(undefined);
 
   const flow: Step[] = useMemo(() => {
     const base: Step[] = singleArea && !isEdit ? [] : ['area'];
@@ -141,11 +146,22 @@ export default function Anotar() {
     setStep(newFlow[i + 1] ?? 'revisao');
   };
 
-  const leave = () => {
-    // Foto tirada e não salva: apaga para não ocupar espaço.
-    if (!savedId && draft.photoUri && draft.photoUri !== originalPhoto.current) deletePhotoFile(draft.photoUri);
+  const navigateAway = () => {
     if (router.canGoBack()) router.back();
     else router.replace('/');
+  };
+
+  const leave = () => {
+    if (savedId) {
+      // Saiu da tela "feito" sem desfazer: a troca de foto está confirmada.
+      if (isEdit && originalPhoto.current && originalPhoto.current !== savedPhoto.current) {
+        deletePhotoFile(originalPhoto.current);
+      }
+    } else if (draft.photo && draft.photo !== originalPhoto.current) {
+      // Foto tirada e não salva: apaga para não ocupar espaço.
+      deletePhotoFile(draft.photo);
+    }
+    navigateAway();
   };
 
   const goBack = () => {
@@ -190,7 +206,7 @@ export default function Anotar() {
       quantity: qty,
       unit: qty !== undefined ? draft.unit ?? info.units[0] : undefined,
       note: draft.note?.trim() || undefined,
-      photoUri: draft.photoUri,
+      photo: draft.photo,
     };
     if (draft.activity === 'plantio') {
       e.variety = draft.variety?.trim() || undefined;
@@ -216,13 +232,15 @@ export default function Anotar() {
   const save = () => {
     const e = buildEntry();
     if (!e) return;
-    if (isEdit) {
-      if (originalPhoto.current && originalPhoto.current !== e.photoUri) deletePhotoFile(originalPhoto.current);
-      updateEntry(e);
+    if (isEdit && editing) {
+      const edited = applyEdit(editing, e);
+      updateEntry(edited.entry);
+      setReopened(edited.reopened);
     } else {
       addEntry(e);
     }
     hapticSuccess();
+    savedPhoto.current = e.photo;
     setSavedId(e.id);
     setStep('feito');
   };
@@ -230,9 +248,11 @@ export default function Anotar() {
   const undo = () => {
     if (!savedId) return;
     if (isEdit) {
-      // Desfazer edição: volta a anotação como estava.
-      if (editing) updateEntry({ ...editing, photoUri: originalPhoto.current });
-      leave();
+      // Desfazer edição: volta a anotação como estava (com a foto original,
+      // que ainda não foi apagada) e descarta a foto nova.
+      if (editing) updateEntry(editing);
+      if (savedPhoto.current && savedPhoto.current !== originalPhoto.current) deletePhotoFile(savedPhoto.current);
+      navigateAway();
       return;
     }
     deleteEntry(savedId);
@@ -253,10 +273,10 @@ export default function Anotar() {
   const addPhoto = async (source: 'camera' | 'galeria') => {
     setPhotoBusy(true);
     try {
-      const uri = await takePhoto(source, 'anotacoes');
-      if (uri) {
-        if (draft.photoUri && draft.photoUri !== originalPhoto.current) deletePhotoFile(draft.photoUri);
-        set({ photoUri: uri });
+      const file = await takePhoto(source, 'anotacoes');
+      if (file) {
+        if (draft.photo && draft.photo !== originalPhoto.current) deletePhotoFile(draft.photo);
+        set({ photo: file });
       }
     } catch (err) {
       Alert.alert('Foto', errorMessage(err));
@@ -266,8 +286,8 @@ export default function Anotar() {
   };
 
   const removePhoto = () => {
-    if (draft.photoUri && draft.photoUri !== originalPhoto.current) deletePhotoFile(draft.photoUri);
-    set({ photoUri: undefined });
+    if (draft.photo && draft.photo !== originalPhoto.current) deletePhotoFile(draft.photo);
+    set({ photo: undefined });
   };
 
   const progress =
@@ -636,6 +656,11 @@ export default function Anotar() {
           <AppText variant="body" center>
             {describeEntry(preview, areaName, today)}
           </AppText>
+          {reopened ? (
+            <AppText variant="bodyStrong" color={colors.clay} center>
+              Como você mudou a anotação, ela voltou para &quot;falta passar para o caderno&quot;.
+            </AppText>
+          ) : null}
           <AppText variant="small" color={colors.inkMuted} center>
             Depois é só passar para o caderno de papel. O resumo da semana mostra tudo em ordem.
           </AppText>
@@ -794,9 +819,9 @@ export default function Anotar() {
 
       <View style={styles.block}>
         <AppText variant="label">Foto (se quiser)</AppText>
-        {draft.photoUri ? (
+        {draft.photo ? (
           <View style={styles.photoRow}>
-            <Image source={{ uri: draft.photoUri }} style={styles.thumb} contentFit="cover" accessibilityLabel="Foto da anotação" />
+            <Image source={{ uri: photoUri(draft.photo) }} style={styles.thumb} contentFit="cover" accessibilityLabel="Foto da anotação" />
             <Button label="Tirar a foto" variant="danger" icon="close" style={styles.flex} onPress={removePhoto} />
           </View>
         ) : (
