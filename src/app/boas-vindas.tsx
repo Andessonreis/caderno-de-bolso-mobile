@@ -11,6 +11,8 @@ import { ProfileBasicFields, ProfileCertFields, tidyProfile, validCertYear } fro
 import { Screen } from '@/components/Screen';
 import { StepProgress } from '@/components/StepProgress';
 import { today } from '@/lib/dates';
+import { SYNC_AVAILABLE } from '@/sync/device';
+import { requestSync } from '@/sync/service';
 import type { Area, Profile } from '@/lib/types';
 import { newId, useApp } from '@/store';
 import { colors, radius, space } from '@/theme';
@@ -29,8 +31,22 @@ export default function BoasVindas() {
   const [areas, setAreas] = useState<Area[]>([]);
   const [crops, setCrops] = useState<string[]>([]);
 
+  const setSyncEnabled = useApp((s) => s.setSyncEnabled);
+  const setSyncAsked = useApp((s) => s.setSyncAsked);
+
   const finish = () => {
     completeOnboarding(tidyProfile(profile), areas, crops);
+    if (SYNC_AVAILABLE) setStep(4);
+    else router.replace('/');
+  };
+
+  const answerCloud = (yes: boolean) => {
+    if (yes) {
+      setSyncEnabled(true);
+      requestSync();
+    } else {
+      setSyncAsked();
+    }
     router.replace('/');
   };
 
@@ -52,6 +68,15 @@ export default function BoasVindas() {
               hint="Carrega um produtor fictício para conhecer o app"
               onPress={sample}
             />
+            {SYNC_AVAILABLE ? (
+              <Button
+                label="Já tenho um caderno"
+                icon="link-variant"
+                variant="quiet"
+                hint="Liga este celular a um caderno guardado na internet"
+                onPress={() => router.push('/ligar')}
+              />
+            ) : null}
           </>
         }>
         <View style={styles.brand}>
@@ -71,6 +96,25 @@ export default function BoasVindas() {
             </AppText>
           </View>
         ))}
+      </Screen>
+    );
+  }
+
+  if (step === 4) {
+    return (
+      <Screen
+        title="Cópia na internet"
+        footer={
+          <>
+            <Button label="Sim, guardar na internet" icon="cloud-upload-outline" size="xl" onPress={() => answerCloud(true)} />
+            <Button label="Agora não" variant="secondary" onPress={() => answerCloud(false)} />
+          </>
+        }>
+        <AppText variant="heading">Quer guardar uma cópia na internet para não perder se o celular quebrar?</AppText>
+        <AppText variant="body" color={colors.inkMuted}>
+          O app envia sozinho quando tiver internet. Sem internet, tudo continua funcionando no celular. Não precisa de e-mail
+          nem senha. Dá para mudar depois em Mais &gt; Cópia na internet.
+        </AppText>
       </Screen>
     );
   }

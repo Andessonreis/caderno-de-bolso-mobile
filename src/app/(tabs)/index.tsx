@@ -6,6 +6,7 @@ import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { Screen } from '@/components/Screen';
 import { ProgressBar } from '@/components/StepProgress';
+import { SyncIndicator } from '@/components/SyncIndicator';
 import { computeChecklist } from '@/lib/checklist';
 import { formatLongDate, inRange, today as todayISO, weekRange } from '@/lib/dates';
 import { describeEntry } from '@/lib/sentence';
@@ -50,6 +51,8 @@ export default function Inicio() {
           {formatLongDate(today)}
         </AppText>
       </View>
+
+      <SyncIndicator />
 
       {profile?.exemplo ? (
         <Card tone="warn" icon="information-outline" title="Dados de exemplo">

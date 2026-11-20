@@ -10,15 +10,22 @@ import type { IconName } from '@/components/Icon';
 import { Screen } from '@/components/Screen';
 import { deleteMediaFile } from '@/lib/device';
 import { Segmented } from '@/components/Segmented';
+import { SyncIndicator } from '@/components/SyncIndicator';
 import { useApp } from '@/store';
 import { FONT_CHOICES, colors, radius, space } from '@/theme';
 
-type Href = '/perfil' | '/areas-culturas' | '/ficha' | '/copia-seguranca' | '/colheita-venda' | '/sobre';
+type Href = '/perfil' | '/areas-culturas' | '/ficha' | '/copia-seguranca' | '/copia-internet' | '/colheita-venda' | '/sobre';
 
 const MENU: { label: string; sublabel: string; icon: IconName; href: Href }[] = [
   { label: 'Meus dados', sublabel: 'Nome, município, cooperativa e certificado', icon: 'account-outline', href: '/perfil' },
   { label: 'Áreas e culturas', sublabel: 'Canteiros, roças e o que você planta', icon: 'map-marker-outline', href: '/areas-culturas' },
   { label: 'Minha ficha (QR)', sublabel: 'Código para o comprador conhecer quem produziu', icon: 'qrcode', href: '/ficha' },
+  {
+    label: 'Cópia na internet',
+    sublabel: 'Para não perder nada se o celular quebrar, e para ligar outro celular',
+    icon: 'cloud-outline',
+    href: '/copia-internet',
+  },
   {
     label: 'Cópia de segurança',
     sublabel: 'Fotos do caderno de papel, exportar e importar dados',
@@ -45,6 +52,7 @@ export default function Mais() {
 
   return (
     <Screen title="Mais" subtitle="Ajustes e outras partes do app.">
+      <SyncIndicator />
       <View style={styles.list}>
         {MENU.map((m) => (
           <ChoiceTile

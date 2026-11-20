@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { useSyncTriggers } from '@/sync/service';
 import { useApp } from '@/store';
 import { colors } from '@/theme';
 
@@ -11,6 +12,7 @@ SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
 export default function RootLayout() {
   const hydrated = useApp((s) => s.hydrated);
+  useSyncTriggers();
 
   useEffect(() => {
     if (hydrated) SplashScreen.hideAsync().catch(() => undefined);
