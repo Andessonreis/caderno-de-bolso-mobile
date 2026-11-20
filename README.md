@@ -3,11 +3,11 @@
 App Android que deixa o agricultor agroecológico anotar a roça na hora, com poucos toques e sem internet, e devolve tudo organizado na ordem do caderno de campo, pronto para passar a limpo, para a visita de pares e para mostrar ao comprador.
 
 <p>
-  <img src="docs/telas/inicio.png" alt="Tela de início" width="200">
-  <img src="docs/telas/anotar-atividade.png" alt="Anotar: escolha da atividade" width="200">
-  <img src="docs/telas/resumos.png" alt="Resumo da semana na ordem do caderno" width="200">
-  <img src="docs/telas/visita.png" alt="Lista de apoio para a visita de pares" width="200">
-  <img src="docs/telas/copia-internet-codigo.png" alt="Cópia na internet: código para ligar outro celular" width="200">
+  <img src="docs/telas/06-inicio.png" alt="Tela de início" width="200">
+  <img src="docs/telas/10-anotar-3-atividade.png" alt="Anotar: escolha da atividade" width="200">
+  <img src="docs/telas/18-resumos.png" alt="Resumo da semana na ordem do caderno" width="200">
+  <img src="docs/telas/20-visita.png" alt="Lista de apoio para a visita de pares" width="200">
+  <img src="docs/telas/26-copia-na-internet-ligar-outro-celular.png" alt="Cópia na internet: código para ligar outro celular" width="200">
 </p>
 
 ## O problema
@@ -60,7 +60,7 @@ O Caderno de Bolso é um ajudante do caderno de campo, não um substituto. O pro
 - **Cópia na internet**, opcional e sem e-mail nem senha. O app pergunta no primeiro uso e, se o produtor aceitar, envia sozinho anotações, fotos e recados sempre que houver sinal. Um indicador no Início mostra "Tudo guardado na internet", "Enviando…", "Faltam N para enviar" ou "Sem internet: guardado só no celular, envio depois".
 - **Ligar outro celular:** um QR (ou código em texto) leva o mesmo caderno para outro aparelho, e o **cartão de recuperação** impresso guarda esse código em casa. Também dá para parar de guardar na internet ou apagar a cópia de lá.
 
-O passo a passo de cada tela, com o mapa de navegação e o fluxo principal em diagrama, está em [docs/fluxos.md](docs/fluxos.md).
+O passo a passo de cada tela, com o mapa de navegação e o fluxo principal em diagrama, está em [docs/fluxos.md](docs/fluxos.md). Todas as telas, numeradas na ordem de uso, estão em [docs/telas](docs/telas/README.md).
 
 ## Decisões de engenharia
 

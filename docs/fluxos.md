@@ -2,7 +2,7 @@
 
 Este documento descreve, tela por tela, o que o produtor vê, o que pode fazer e para onde cada ação leva. Ele foi escrito a partir das rotas do app (`src/app`). Se algum ponto divergir do app, vale o app.
 
-As capturas em `docs/telas/` foram feitas no build web do app, em tamanho de celular (390 × 844), com os dados de exemplo. No navegador não existem as funções do celular (câmera, microfone, cópia na internet). Por isso as telas "Cópia na internet" e "Já tenho um caderno" não têm captura, e o botão "Já tenho um caderno" não aparece nas boas-vindas capturadas.
+As capturas estão em [`docs/telas/`](telas/README.md), numeradas na ordem de uso e com um índice que diz como chegar em cada tela. Foram feitas com o app renderizado em tamanho de celular (390 × 844) e um produtor fictício. As telas "Cópia na internet" e "Já tenho um caderno" só existem no app instalado; as capturas delas usam um servidor simulado, e o código que aparece nelas não abre nenhum caderno.
 
 ## Mapa geral de navegação
 
@@ -83,7 +83,7 @@ flowchart LR
 
 ### Boas-vindas
 
-![Boas-vindas](telas/boas-vindas.png)
+![Boas-vindas](telas/01-boas-vindas.png)
 
 Você chega aqui na primeira vez que abre o app, ou depois de apagar os dados de exemplo quando eles eram o único cadastro. A tela mostra o nome do app, uma frase dizendo que ele ajuda o caderno de campo sem substituí-lo, e três lembretes: anotar só tocando, ver tudo na ordem do caderno e funcionar sem internet.
 
@@ -95,19 +95,19 @@ Funciona sem internet, menos o "Já tenho um caderno".
 
 ### Passo 1: Quem é você?
 
-![Passo 1](telas/boas-vindas-1-nome.png)
+![Passo 1](telas/02-cadastro-nome.png)
 
 A barra mostra "Passo 1 de 3". O app pede o **nome**, que é obrigatório, e o **município**, que é opcional. O botão **Próximo** só funciona com o nome preenchido. **Voltar** retorna às boas-vindas.
 
 ### Passo 2: Sua certificação
 
-![Passo 2](telas/boas-vindas-2-certificacao.png)
+![Passo 2](telas/03-cadastro-certificacao.png)
 
 Todos os campos são opcionais: cooperativa ou núcleo, quem certifica (OPAC), número do certificado, ano desde quando é certificado e registro no cadastro nacional de produtores orgânicos. Se o ano não fizer sentido (antes de 1980 ou no futuro), aparece "O ano do certificado parece errado." e o **Próximo** fica bloqueado. Tudo pode ser preenchido depois, em Mais > Meus dados.
 
 ### Passo 3: Sua roça
 
-![Passo 3](telas/boas-vindas-3-roca.png)
+![Passo 3](telas/04-cadastro-roca.png)
 
 Aqui o produtor cadastra as **áreas** e marca as **culturas** que planta. Para concluir, é obrigatório ter pelo menos uma área e uma cultura.
 
@@ -118,7 +118,7 @@ O botão **Pronto, começar a anotar** só funciona com o mínimo preenchido. At
 
 ### Cópia na internet (pergunta do primeiro uso)
 
-![Pergunta da cópia na internet](telas/copia-internet-pergunta.png)
+![Pergunta da cópia na internet](telas/05-cadastro-copia-internet.png)
 
 Só no celular, logo depois do passo 3. A tela pergunta: "Quer guardar uma cópia na internet para não perder se o celular quebrar?"
 
@@ -131,9 +131,9 @@ Sempre visível nas telas principais: **Início**, **Caderno**, **Anotar** (bot�
 
 ## Início
 
-![Início](telas/inicio.png)
+![Início](telas/06-inicio.png)
 
-![Início com a cópia na internet ligada](telas/inicio-copia-ligada.png)
+![Início com a cópia na internet ligada](telas/07-inicio-copia-ligada.png)
 
 Você chega aqui ao abrir o app, ao concluir o cadastro ou pela aba Início. A tela mostra:
 
@@ -154,19 +154,19 @@ Você chega aqui pelo botão **Anotar agora** do Início, pelo botão central da
 
 ### Onde foi? (área)
 
-![Área](telas/anotar-area.png)
+![Área](telas/08-anotar-1-area.png)
 
 Mostra as áreas cadastradas, com a última usada no topo e a etiqueta "Última usada". Se a roça tem uma área só, este passo é pulado.
 
 ### Qual cultura?
 
-![Cultura](telas/anotar-cultura.png)
+![Cultura](telas/09-anotar-2-cultura.png)
 
 Mostra as culturas em blocos grandes, com as mais usadas primeiro. Em "Não está na lista?" dá para digitar uma cultura nova e tocar em **Usar esta cultura**. Ela também passa a fazer parte da lista do produtor.
 
 ### O que você fez?
 
-![Atividade](telas/anotar-atividade.png)
+![Atividade](telas/10-anotar-3-atividade.png)
 
 Oito opções: Plantio, Adubação ou calda, Rega, Capina ou manejo, Colheita, Venda, Compra de semente ou insumo e Outra coisa. A escolha define os próximos passos:
 
@@ -179,19 +179,19 @@ Oito opções: Plantio, Adubação ou calda, Rega, Capina ou manejo, Colheita, V
 | Compra | O que comprou? (semente ou muda; adubo, calda ou insumo) → Quanto? (opcional) → Quanto pagou? (opcional) |
 | Rega, Capina ou manejo, Outra coisa | vão direto para a revisão |
 
-![Origem da semente](telas/anotar-origem-semente.png)
+![Origem da semente](telas/11-anotar-4-origem-semente.png)
 
 ### Quanto?
 
-![Quantidade](telas/anotar-quantidade.png)
+![Quantidade](telas/12-anotar-5-quantidade.png)
 
 Primeiro escolhe-se a unidade (quilo, saca, caixa, maço, unidade, litro, carrinho de mão, conforme a atividade). O app já marca a unidade usada da última vez para aquela cultura e atividade. Depois o produtor digita a quantidade num teclado numérico grande do próprio app, com vírgula e botão de apagar. **Próximo** só funciona com um número válido. Nas atividades em que a quantidade é opcional, aparece também **Pular**.
 
 ### Confira e salve
 
-![Revisão](telas/anotar-revisao.png)
+![Revisão](telas/13-anotar-6-revisao.png)
 
-![Revisão: recado de voz e foto](telas/anotar-revisao-recado.png)
+![Revisão: recado de voz e foto](telas/14-anotar-7-revisao-recado-e-foto.png)
 
 A anotação aparece numa frase ("Hoje, no Canteiro 1: plantio de 12 kg de feijão (banco de sementes)"). Nesta tela:
 
@@ -204,7 +204,7 @@ A anotação aparece numa frase ("Hoje, no Canteiro 1: plantio de 12 kg de feij�
 
 ### Anotado!
 
-![Anotado](telas/anotado.png)
+![Anotado](telas/15-anotar-8-anotado.png)
 
 Confirmação com vibração, a frase da anotação e o lembrete de passar para o caderno de papel. Opções:
 
@@ -218,7 +218,7 @@ Anotar funciona sempre sem internet.
 
 ## Caderno
 
-![Caderno](telas/caderno.png)
+![Caderno](telas/16-caderno.png)
 
 Você chega aqui pela aba Caderno, pelo cartão "Últimas anotações" do Início ou pela Visita. A tela lista tudo o que foi anotado, separado por dia ("Hoje", "Ontem", "segunda, 16 de novembro"). Cada anotação mostra:
 
@@ -228,7 +228,7 @@ Você chega aqui pela aba Caderno, pelo cartão "Últimas anotações" do Iníci
 - **Mudar**, que abre a anotação no passo a passo, já na revisão;
 - **Apagar**, que pede confirmação e depois mostra "Anotação apagada." com **Desfazer** por alguns segundos.
 
-![Filtros do caderno](telas/caderno-filtros.png)
+![Filtros do caderno](telas/17-caderno-filtros.png)
 
 **Filtrar** abre filtros por área, cultura e atividade, e mostra quantos estão ligados. **Limpar filtros** volta a mostrar tudo.
 
@@ -241,7 +241,7 @@ Funciona sem internet.
 
 ## Resumos
 
-![Resumos](telas/resumos.png)
+![Resumos](telas/18-resumos.png)
 
 Você chega aqui pela aba Resumos ou pelo cartão "Esta semana" do Início. No topo, a escolha entre **Semana** e **Mês** e as setas para o período anterior ou o próximo (não passa do período atual). A tela mostra:
 
@@ -260,7 +260,7 @@ Funciona sem internet.
 
 ## Colheita e venda
 
-![Colheita e venda](telas/colheita-venda.png)
+![Colheita e venda](telas/19-colheita-venda.png)
 
 Você chega aqui pelo cartão nos Resumos ou por Mais. A tela tem Semana ou Mês, com setas, e mostra:
 
@@ -274,7 +274,7 @@ Funciona sem internet.
 
 ## Visita (Pronto para a visita)
 
-![Visita](telas/visita.png)
+![Visita](telas/20-visita.png)
 
 Você chega aqui pela aba Visita ou pelo cartão do Início. A tela diz que é uma **lista de apoio** e que não é o roteiro oficial de nenhum grupo ou certificadora. Ela mostra:
 
@@ -288,7 +288,7 @@ Funciona sem internet.
 
 ## Mais
 
-![Mais](telas/mais.png)
+![Mais](telas/21-mais.png)
 
 Você chega aqui pela aba Mais. A tela mostra o indicador da cópia na internet e o menu:
 
@@ -307,13 +307,13 @@ Abaixo do menu:
 
 ## Meus dados
 
-![Meus dados](telas/perfil.png)
+![Meus dados](telas/22-meus-dados.png)
 
 Você chega aqui por Mais ou por "Mudar meus dados" na ficha. A tela traz os mesmos campos do cadastro (nome, município, cooperativa, OPAC, certificado, ano, registro nacional), mais o **código do sistema de rastreio que já uso**, que entra na ficha. Só o nome é obrigatório. Os campos têm limite de tamanho igual ao do site da ficha. **Salvar** grava e volta; com o nome vazio ou o ano errado, o app avisa e não salva.
 
 ## Áreas e culturas
 
-![Áreas e culturas](telas/areas-culturas.png)
+![Áreas e culturas](telas/23-areas-e-culturas.png)
 
 Você chega aqui por Mais. A tela permite:
 
@@ -322,7 +322,7 @@ Você chega aqui por Mais. A tela permite:
 
 ## Minha ficha (QR)
 
-![Minha ficha](telas/ficha.png)
+![Minha ficha](telas/24-minha-ficha-qr.png)
 
 Você chega aqui pelo Início ou por Mais. A tela mostra:
 
@@ -336,7 +336,7 @@ Se os dados ficarem grandes demais para o QR, a tela avisa e pede para encurtar 
 
 ## Cópia de segurança
 
-![Cópia de segurança](telas/copia-seguranca.png)
+![Cópia de segurança](telas/25-copia-de-seguranca.png)
 
 Você chega aqui por Mais ou pela Visita, no item "Cópia de segurança". A tela mostra:
 
@@ -349,9 +349,9 @@ Funciona sem internet. O arquivo pode ser guardado no WhatsApp, no e-mail ou num
 
 ## Cópia na internet
 
-![Cópia na internet: ligar outro celular](telas/copia-internet-codigo.png)
+![Cópia na internet: ligar outro celular](telas/26-copia-na-internet-ligar-outro-celular.png)
 
-![Cópia na internet: cartão de recuperação, parar e apagar](telas/copia-internet-rodape.png)
+![Cópia na internet: cartão de recuperação, parar e apagar](telas/27-copia-na-internet-cartao-e-apagar.png)
 
 Só no app do celular. Você chega aqui por Mais, pelo indicador do Início ou de Mais, ou pela pergunta do primeiro uso.
 
@@ -368,9 +368,9 @@ O envio é automático: ao abrir o app, quando a internet volta, quando o app vo
 
 ## Já tenho um caderno (ligar este celular)
 
-![Já tenho um caderno](telas/ligar-escolher.png)
+![Já tenho um caderno](telas/29-ja-tenho-um-caderno.png)
 
-![Ligar este celular?](telas/ligar-confirmar.png)
+![Ligar este celular?](telas/30-ja-tenho-um-caderno-confirmar.png)
 
 Só no app do celular. Você chega aqui pelas boas-vindas ("Já tenho um caderno"), pela Cópia na internet ("Ligar de novo") ou abrindo o link `cadernodebolso://ligar?...`.
 
@@ -383,13 +383,13 @@ Se o código não confere, a tela pede o código de novo. Se não há internet, 
 
 ## Sobre o app
 
-![Sobre](telas/sobre.png)
+![Sobre](telas/28-sobre.png)
 
 Você chega aqui por Mais. A tela explica que o app é um ajudante do caderno de campo, que os dados ficam no celular (e na cópia na internet, se o produtor quiser), que anotar e consultar funcionam sem internet, que os resumos só somam e que o app é um projeto acadêmico do IFBA campus Irecê.
 
 ## Página não encontrada
 
-![Página não encontrada](telas/nao-encontrada.png)
+![Página não encontrada](telas/31-pagina-nao-encontrada.png)
 
 Aparece se um link aberto não corresponde a nenhuma tela. Explica que as anotações continuam guardadas e oferece **Voltar para o início**.
 
