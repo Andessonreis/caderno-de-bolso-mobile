@@ -63,12 +63,12 @@ describe('repositório e fila de alterações', () => {
   it('a fila guarda só a alteração mais recente de cada registro', () => {
     let n = 0;
     const id = () => `c${++n}`;
-    let q = enqueue([], { entity: 'entry', recordId: 'x', op: 'upsert', at: T0 }, id);
+    let q = enqueue([], { entity: 'anotacao', recordId: 'x', op: 'upsert', at: T0 }, id);
     q = enqueue(q, { entity: 'area', recordId: 'x', op: 'upsert', at: T0 }, id);
-    q = enqueue(q, { entity: 'entry', recordId: 'x', op: 'delete', at: T1 }, id);
+    q = enqueue(q, { entity: 'anotacao', recordId: 'x', op: 'delete', at: T1 }, id);
     expect(q).toEqual([
       { id: 'c2', entity: 'area', recordId: 'x', op: 'upsert', at: T0 },
-      { id: 'c3', entity: 'entry', recordId: 'x', op: 'delete', at: T1 },
+      { id: 'c3', entity: 'anotacao', recordId: 'x', op: 'delete', at: T1 },
     ]);
     expect(acknowledge(q, ['c2'])).toEqual([q[1]]);
   });

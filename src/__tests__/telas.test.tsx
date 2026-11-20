@@ -17,6 +17,10 @@ async function resetStore() {
 }
 
 describe('telas do app', () => {
+  // Os testes de tela nunca falam com a internet (o teste real é o `npm run test:rede`).
+  beforeAll(() => {
+    global.fetch = jest.fn(() => Promise.reject(new TypeError('sem internet nos testes'))) as unknown as typeof fetch;
+  });
   beforeEach(resetStore);
 
   it('primeiro uso leva às boas-vindas e carrega os dados de exemplo', async () => {
@@ -50,7 +54,7 @@ describe('telas do app', () => {
     expect(useApp.getState().entries).toHaveLength(before + 1);
 
     const created = useApp.getState().entries.at(-1);
-    expect(useApp.getState().pendingChanges.at(-1)).toMatchObject({ entity: 'entry', recordId: created?.id, op: 'upsert' });
+    expect(useApp.getState().pendingChanges.at(-1)).toMatchObject({ entity: 'anotacao', recordId: created?.id, op: 'upsert' });
 
     await fireEvent.press(screen.getByLabelText('Desfazer'));
     expect(await screen.findByText('Confira e salve')).toBeTruthy();
@@ -131,5 +135,30 @@ describe('telas do app', () => {
     expect(await screen.findByText('Desmarcar os itens que você marcou?')).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('Sim, desmarcar'));
     expect(useApp.getState().manualChecks).toEqual({});
+  });
+
+  it('cópia na internet pergunta antes de ligar', async () => {
+    await act(() => useApp.getState().completeOnboarding({ name: 'Ana' }, [{ id: 'a', name: 'Horta', updatedAt: '2026-11-01T00:00:00.000Z' }], ['alface']));
+    await renderRouter(APP_DIR, { initialUrl: '/copia-internet' });
+    expect(await screen.findByText('Quer guardar uma cópia na internet para não perder se o celular quebrar?')).toBeTruthy();
+    expect(screen.getAllByText('Guardado só neste celular').length).toBeGreaterThan(0);
+    await fireEvent.press(screen.getByLabelText('Sim, guardar na internet'));
+    expect(useApp.getState().sync.ligado).toBe(true);
+    expect(await screen.findByText('Ligar outro celular')).toBeTruthy();
+  });
+
+  it('ligar outro celular recusa código errado e abre a confirmação pelo link', async () => {
+    await renderRouter(APP_DIR, { initialUrl: '/ligar' });
+    expect(await screen.findByText('Já tenho um caderno')).toBeTruthy();
+    await fireEvent.changeText(screen.getByLabelText('Ou cole o código'), 'codigo-errado');
+    await fireEvent.press(screen.getByLabelText('Usar este código'));
+    expect(await screen.findByText(/não é de um Caderno de Bolso/)).toBeTruthy();
+  });
+
+  it('o link cadernodebolso://ligar abre direto a confirmação', async () => {
+    const chave = 'A'.repeat(43);
+    await renderRouter(APP_DIR, { initialUrl: `/ligar?c=3f1b2c4d-5e6f-4a1b-8c2d-3e4f5a6b7c8d&k=${chave}` });
+    expect(await screen.findByText('Ligar este celular?')).toBeTruthy();
+    expect(screen.getByLabelText('Sim, ligar este celular')).toBeTruthy();
   });
 });

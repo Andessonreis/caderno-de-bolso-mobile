@@ -84,7 +84,7 @@ describe('fotos com caminho relativo', () => {
     expect(out.photos[0].file).toBe('caderno/2.jpg');
     expect(out.fontSize).toBe('grande');
     // tudo do produtor entra na fila para a primeira sincronização
-    expect(out.pendingChanges.map((c) => c.entity).sort()).toEqual(['area', 'entry', 'entry', 'photo', 'profile', 'settings']);
+    expect(out.pendingChanges.map((c) => c.entity).sort()).toEqual(['anotacao', 'anotacao', 'area', 'culturas', 'pagina', 'perfil', 'visita']);
     expect(out.pendingChanges.every((c) => c.op === 'upsert')).toBe(true);
   });
 
@@ -96,9 +96,33 @@ describe('fotos com caminho relativo', () => {
     expect(out.pendingChanges).toEqual([]);
   });
 
+  it('versão 3 → 4: fila com os nomes do servidor e cópia na internet desligada', () => {
+    const deps = { newId: () => 'novo', now: '2026-11-21T00:00:00.000Z' };
+    const out = migratePersisted(
+      {
+        entries: [],
+        pendingChanges: [
+          { id: 'a', entity: 'entry', recordId: 'e1', op: 'upsert', at: '2026-11-20T00:00:00.000Z' },
+          { id: 'b', entity: 'settings', recordId: 'settings', op: 'upsert', at: '2026-11-20T00:00:00.000Z' },
+          { id: 'c', entity: 'photo', recordId: 'p1', op: 'delete', at: '2026-11-20T00:00:00.000Z' },
+        ],
+      },
+      3,
+      deps,
+    ) as { pendingChanges: { entity: string; recordId: string; op: string }[]; sync: unknown; culturasUpdatedAt: string };
+    expect(out.pendingChanges.map((c) => `${c.entity}:${c.recordId}:${c.op}`)).toEqual([
+      'anotacao:e1:upsert',
+      'culturas:culturas:upsert',
+      'visita:visita:upsert',
+      'pagina:p1:delete',
+    ]);
+    expect(out.sync).toEqual({ ligado: false, perguntado: false, cursor: 0, enviados: {} });
+    expect(out.culturasUpdatedAt).toBe(deps.now);
+  });
+
   it('não mexe em dados já na versão atual', () => {
-    const v3 = { entries: [{ id: '1', photo: 'anotacoes/1.jpg' }], photos: [] };
-    expect(migratePersisted(v3, 3)).toEqual(v3);
+    const v4 = { entries: [{ id: '1', photo: 'anotacoes/1.jpg' }], photos: [] };
+    expect(migratePersisted(v4, 4)).toEqual(v4);
   });
 });
 
