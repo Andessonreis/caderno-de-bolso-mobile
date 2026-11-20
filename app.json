@@ -44,9 +44,19 @@
         {
           "photosPermission": "O Caderno de Bolso usa suas fotos para guardar páginas do caderno de campo e fotos das anotações.",
           "cameraPermission": "O Caderno de Bolso usa a câmera para fotografar as páginas do caderno de campo e as anotações.",
-          "microphonePermission": false
+          "microphonePermission": "O Caderno de Bolso usa o microfone para gravar recados de voz nas suas anotações."
         }
-      ]
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "O Caderno de Bolso usa o microfone para gravar recados de voz nas suas anotações.",
+          "recordAudioAndroid": true,
+          "enableBackgroundRecording": false,
+          "enableBackgroundPlayback": false
+        }
+      ],
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true,
