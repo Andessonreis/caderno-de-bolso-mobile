@@ -5,7 +5,13 @@ import { View } from 'react-native';
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
 import { Field } from '@/components/Field';
-import { ProfileBasicFields, ProfileCertFields, tidyProfile, validCertYear } from '@/components/ProfileFields';
+import {
+  PROFILE_LIMITS,
+  ProfileBasicFields,
+  ProfileCertFields,
+  tidyProfile,
+  validCertYear,
+} from '@/components/ProfileFields';
 import { Screen } from '@/components/Screen';
 import { hapticSuccess } from '@/lib/device';
 import type { Profile } from '@/lib/types';
@@ -56,7 +62,7 @@ export default function Perfil() {
           value={p.traceCode ?? ''}
           onChangeText={(traceCode) => setP({ ...p, traceCode })}
           autoCapitalize="characters"
-          maxLength={60}
+          maxLength={PROFILE_LIMITS.traceCode}
         />
       </View>
     </Screen>

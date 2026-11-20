@@ -8,7 +8,7 @@ import { Button } from '@/components/Button';
 import { Screen } from '@/components/Screen';
 import { capitalize } from '@/lib/catalog';
 import { formatShortDate } from '@/lib/dates';
-import { errorMessage, printHtml, sharePdf } from '@/lib/device';
+import { UserFacingError, errorMessage, printHtml, sharePdf } from '@/lib/device';
 import { fichaFromProfile, fichaUrl } from '@/lib/ficha';
 import { cardHtml } from '@/lib/html';
 import { QR_ECL, qrSvg } from '@/lib/qr';
@@ -32,6 +32,7 @@ export default function Ficha() {
   const crops = useApp((s) => s.crops);
   const entries = useApp((s) => s.entries);
   const [busy, setBusy] = useState<'print' | 'pdf' | null>(null);
+  const [qrError, setQrError] = useState<string | null>(null);
 
   if (!profile) return null;
   const ficha = fichaFromProfile(profile, crops, lastEntryDate(entries));
@@ -49,6 +50,7 @@ export default function Ficha() {
   const run = async (kind: 'print' | 'pdf') => {
     setBusy(kind);
     try {
+      if (qrError === url) throw new UserFacingError('Não deu para montar o código. Encurte algum campo em Meus dados.');
       if (kind === 'print') await printHtml(card());
       else await sharePdf(card(), 'cartao-ficha');
     } catch (e) {
@@ -72,7 +74,27 @@ export default function Ficha() {
       title="Minha ficha"
       subtitle="Mostre este código ao comprador. Ele aponta a câmera do celular e vê quem produziu.">
       <View style={styles.qrBox} accessible accessibilityRole="image" accessibilityLabel={`Código QR da ficha de ${profile.name}`}>
-        <QRCode value={url} size={260} ecl={QR_ECL} backgroundColor="#FFFFFF" color="#000000" quietZone={12} />
+        {qrError === url ? (
+          <View style={styles.qrError} accessibilityRole="alert">
+            <AppText variant="bodyStrong" center>
+              Não deu para montar o código.
+            </AppText>
+            <AppText variant="body" color={colors.inkMuted} center>
+              Os dados ficaram grandes demais para caber no QR. Encurte algum campo em Meus dados (nome, cooperativa ou
+              certificado) e tente de novo.
+            </AppText>
+          </View>
+        ) : (
+          <QRCode
+            value={url}
+            size={260}
+            ecl={QR_ECL}
+            backgroundColor="#FFFFFF"
+            color="#000000"
+            quietZone={12}
+            onError={() => setQrError(url)}
+          />
+        )}
         <AppText variant="small" color={colors.inkMuted} center>
           Quem ler o código precisa de internet para abrir a ficha. O seu celular não precisa.
         </AppText>
@@ -135,5 +157,6 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     backgroundColor: colors.surface,
   },
+  qrError: { width: 260, minHeight: 200, justifyContent: 'center', gap: space.sm },
   line: { gap: 2, paddingVertical: space.xs, borderBottomWidth: 1, borderBottomColor: colors.line },
 });

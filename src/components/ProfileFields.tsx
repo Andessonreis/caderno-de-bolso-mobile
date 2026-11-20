@@ -5,6 +5,17 @@ import { space } from '@/theme';
 
 import { Field } from './Field';
 
+/** Limites de tamanho iguais aos que o site aceita na ficha. */
+export const PROFILE_LIMITS = {
+  name: 80,
+  municipality: 60,
+  cooperative: 80,
+  opac: 80,
+  certificateId: 80,
+  nationalRegistry: 80,
+  traceCode: 80,
+} as const;
+
 interface Props {
   value: Profile;
   onChange: (p: Profile) => void;
@@ -20,6 +31,7 @@ export function ProfileBasicFields({ value, onChange }: Props) {
         onChangeText={(name) => onChange({ ...value, name })}
         autoCapitalize="words"
         autoComplete="name"
+        maxLength={PROFILE_LIMITS.name}
         returnKeyType="next"
       />
       <Field
@@ -29,6 +41,7 @@ export function ProfileBasicFields({ value, onChange }: Props) {
         value={value.municipality ?? ''}
         onChangeText={(municipality) => onChange({ ...value, municipality })}
         autoCapitalize="words"
+        maxLength={PROFILE_LIMITS.municipality}
       />
     </View>
   );
@@ -43,6 +56,7 @@ export function ProfileCertFields({ value, onChange }: Props) {
         value={value.cooperative ?? ''}
         onChangeText={(cooperative) => onChange({ ...value, cooperative })}
         autoCapitalize="words"
+        maxLength={PROFILE_LIMITS.cooperative}
       />
       <Field
         label="Quem certifica (OPAC)"
@@ -50,6 +64,7 @@ export function ProfileCertFields({ value, onChange }: Props) {
         help="O nome do organismo do seu sistema participativo."
         value={value.opac ?? ''}
         onChangeText={(opac) => onChange({ ...value, opac })}
+        maxLength={PROFILE_LIMITS.opac}
       />
       <Field
         label="Número ou identificação do certificado"
@@ -57,6 +72,7 @@ export function ProfileCertFields({ value, onChange }: Props) {
         value={value.certificateId ?? ''}
         onChangeText={(certificateId) => onChange({ ...value, certificateId })}
         autoCapitalize="characters"
+        maxLength={PROFILE_LIMITS.certificateId}
       />
       <Field
         label="Certificado desde (ano)"
@@ -76,6 +92,7 @@ export function ProfileCertFields({ value, onChange }: Props) {
         value={value.nationalRegistry ?? ''}
         onChangeText={(nationalRegistry) => onChange({ ...value, nationalRegistry })}
         autoCapitalize="characters"
+        maxLength={PROFILE_LIMITS.nationalRegistry}
       />
     </View>
   );
