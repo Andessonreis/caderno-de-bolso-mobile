@@ -4,15 +4,19 @@ import {
   ETAPAS,
   ITENS,
   LIMITES_VISITA,
+  bytesUtf8,
+  cortarNoLimite,
   culturasSensiveisDe,
   hojeIso,
   itensDaEtapa,
+  letrasRestantes,
   nomeDoArquivo,
   normalizarVisita,
   novaVisita,
   pendencias,
   progresso,
   type Visita,
+  visitaVazia,
 } from '../roteiro';
 
 const AGORA = new Date('2026-11-20T10:00:00');
@@ -69,6 +73,28 @@ describe('modelo do roteiro', () => {
     expect(culturasSensiveisDe(['Milho crioulo', 'feijao de corda', 'abóbora'])).toEqual(['feijão', 'milho']);
     expect(culturasSensiveisDe(['ALGODÃO colorido', 'soja'])).toEqual(['algodão', 'soja']);
     expect(culturasSensiveisDe(['coentro'])).toEqual([]);
+  });
+
+  it('reconhece acento separado da letra (texto colado de outro lugar)', () => {
+    const decomposto = 'feijão'.normalize('NFD');
+    expect(decomposto).not.toBe('feijão');
+    expect(culturasSensiveisDe([decomposto])).toEqual(['feijão']);
+    expect(culturasSensiveisDe(['Feijão de corda'])).toEqual(['feijão']);
+  });
+
+  it('visita sem nada preenchido é vazia; qualquer resposta ou texto deixa de ser', () => {
+    const v = novaVisita(AGORA, 'v');
+    expect(visitaVazia(v)).toBe(true);
+    expect(visitaVazia({ ...v, respostas: { doc_caderno: { obs: '  ' } } })).toBe(true);
+    expect(visitaVazia({ ...v, produtor: { ...v.produtor, nome: 'Rosa' } })).toBe(false);
+    expect(visitaVazia({ ...v, respostas: { doc_caderno: { r: 'sim', obs: '' } } })).toBe(false);
+    expect(visitaVazia({ ...v, respostas: { doc_caderno: { obs: 'ver depois' } } })).toBe(false);
+    expect(visitaVazia({ ...v, tipo: 'pares' })).toBe(false);
+    expect(visitaVazia({ ...v, usoArmazenamento: 'exclusivo' })).toBe(false);
+    expect(visitaVazia({ ...v, culturasSensiveis: ['milho'] })).toBe(false);
+    expect(visitaVazia({ ...v, naoConformidades: [{ id: 'n', descricao: '', prazo: '' }] })).toBe(false);
+    expect(visitaVazia({ ...v, observacoes: 'Boa conversa' })).toBe(false);
+    expect(visitaVazia({ ...v, parecer: 'conforme' })).toBe(false);
   });
 });
 
@@ -152,6 +178,33 @@ describe('visita vinda de fora', () => {
     expect(v!.naoConformidades).toHaveLength(LIMITES_VISITA.naoConformidades);
   });
 
+  it('conta bytes como o servidor (UTF-8)', () => {
+    for (const t of ['abc', 'ção', '…—', '🌽🫘', 'a\u{1F33D}b', '\ud800x']) {
+      expect(bytesUtf8(t)).toBe(Buffer.byteLength(t, 'utf8'));
+    }
+  });
+
+  it('corta pelo teto de bytes sem partir emoji', () => {
+    expect(cortarNoLimite('abc ', 10)).toBe('abc ');
+    expect(cortarNoLimite('a'.repeat(20), 10)).toHaveLength(10);
+    // "…" e "—" têm 3 bytes: no teto de 2 bytes por letra cabem 6 em 10 letras.
+    expect(cortarNoLimite('…'.repeat(20), 10)).toBe('…'.repeat(6));
+    expect(cortarNoLimite('—'.repeat(20), 10)).toBe('—'.repeat(6));
+    // Emoji tem 4 bytes: cabem 5, inteiros.
+    const emoji = cortarNoLimite('🌽'.repeat(20), 10);
+    expect(Array.from(emoji)).toEqual(Array(5).fill('🌽'));
+    expect(letrasRestantes('', 10)).toBe(10);
+    expect(letrasRestantes('abcd', 10)).toBe(6);
+    expect(letrasRestantes('…'.repeat(6), 10)).toBe(1);
+    expect(letrasRestantes(emoji, 10)).toBe(0);
+  });
+
+  it('textos de fora também respeitam o teto de bytes', () => {
+    const v = normalizarVisita({ id: 'x', observacoes: '😀'.repeat(1000), produtor: { nome: '…'.repeat(200) } });
+    expect(Array.from(v!.observacoes)).toHaveLength(LIMITES_VISITA.textoLongo / 2);
+    expect(bytesUtf8(v!.produtor.nome)).toBeLessThanOrEqual(LIMITES_VISITA.nome * 2);
+  });
+
   it('dá nome legível ao arquivo', () => {
     const v = visitaCompleta();
     v.produtor.nome = 'Zé Carlos da Conceição';
@@ -198,6 +251,15 @@ describe('folha da visita (PDF)', () => {
     expect(html).toContain('<td>Produtor visitado</td>');
     expect(html).toContain('não substitui o roteiro nem os documentos oficiais do grupo');
     expect(html).not.toContain(ITENS.find((i) => i.id === 'sem_comprovacao')!.texto);
+  });
+
+  it('não deixa texto do produtor virar código na folha', () => {
+    const v = visitaCompleta();
+    v.observacoes = '<script>alert(1)</script>';
+    v.respostas.doc_notas = { r: 'nao', obs: '<script src="x"></script>' };
+    const html = roteiroHtml(v, '2026-11-20');
+    expect(html).not.toMatch(/<script/i);
+    expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
   });
 
   it('deixa em branco o que não foi respondido', () => {

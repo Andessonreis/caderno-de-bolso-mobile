@@ -254,6 +254,31 @@ export function novaVisita(agora: Date = new Date(), id: string = uuid()): Visit
   };
 }
 
+/**
+ * Visita aberta e deixada sem nada: sem nome, sem resposta, sem escolha e sem
+ * texto. A data não conta, porque já vem preenchida com o dia de hoje.
+ */
+export function visitaVazia(v: Visita): boolean {
+  const textos = [
+    v.produtor.nome,
+    v.produtor.municipio,
+    ...v.produtor.culturas,
+    v.visitantes,
+    v.separacao,
+    v.pontosFortes,
+    v.observacoes,
+  ];
+  return (
+    textos.every((t) => !t.trim()) &&
+    !v.tipo &&
+    !v.usoArmazenamento &&
+    !v.parecer &&
+    v.culturasSensiveis.length === 0 &&
+    v.naoConformidades.length === 0 &&
+    Object.values(v.respostas).every((r) => !r.r && !r.obs.trim())
+  );
+}
+
 const SEM_ACENTO: Record<string, string> = {
   á: 'a', à: 'a', â: 'a', ã: 'a', ä: 'a',
   é: 'e', è: 'e', ê: 'e', ë: 'e',
@@ -263,8 +288,15 @@ const SEM_ACENTO: Record<string, string> = {
   ç: 'c',
 };
 
-/** Sem acento e em minúsculas, para comparar nomes de cultura. */
+/**
+ * Sem acento e em minúsculas, para comparar nomes de cultura. Igual ao site:
+ * separa letra e acento (NFD) e tira o acento, o que também resolve texto
+ * colado com o acento já separado. A tabela só vale onde não houver normalize.
+ */
 function simplificar(texto: string): string {
+  if (typeof texto.normalize === 'function') {
+    return texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  }
   return texto.toLowerCase().replace(/[áàâãäéèêëíìîïóòôõöúùûüç]/g, (c) => SEM_ACENTO[c] ?? c);
 }
 
@@ -278,7 +310,7 @@ export function culturasSensiveisDe(culturas: string[]): CulturaSensivel[] {
 // Limites e leitura de visitas vindas de fora (cópia de segurança, internet)
 
 /**
- * Limites de cada campo. Os campos da tela usam os mesmos números no
+ * Limites de cada campo, em letras. Os campos da tela usam os mesmos números no
  * maxLength, para nada ser cortado sem a pessoa ver. São menores que os do
  * site para a visita inteira caber num registro da cópia na internet (32 KB).
  */
@@ -294,17 +326,71 @@ export const LIMITES_VISITA = {
   naoConformidades: 15,
 } as const;
 
+/**
+ * Cada campo também tem um teto em bytes: o dobro do limite em letras. Letra
+ * sem acento ocupa 1 byte e com acento 2, então texto em português nunca chega
+ * nele; quem chega é texto cheio de emoji ou de "…" (3 a 4 bytes cada). Com
+ * esse teto, a maior visita possível fica abaixo de 30.000 bytes.
+ */
+const BYTES_POR_LETRA = 2;
+
+/** Bytes de um texto em UTF-8 (o que o servidor conta). Caractere solto, sem par, conta como 3. */
+export function bytesUtf8(texto: string): number {
+  let total = 0;
+  for (let i = 0; i < texto.length; i++) {
+    const c = texto.charCodeAt(i);
+    if (c < 0x80) total += 1;
+    else if (c < 0x800) total += 2;
+    else if (c >= 0xd800 && c <= 0xdbff && (texto.charCodeAt(i + 1) & 0xfc00) === 0xdc00) {
+      total += 4;
+      i += 1;
+    } else total += 3;
+  }
+  return total;
+}
+
+/** Bytes que o texto ocupa dentro do registro (JSON: aspas e quebras de linha viram dois caracteres). */
+function bytesNoRegistro(texto: string): number {
+  return bytesUtf8(JSON.stringify(texto)) - 2;
+}
+
+/**
+ * Corta o texto no limite de letras e no teto de bytes, sem partir emoji nem
+ * acento. Não mexe em espaços: serve para o que está sendo digitado.
+ */
+export function cortarNoLimite(texto: string, limite: number, bytes: number = limite * BYTES_POR_LETRA): string {
+  let saida = '';
+  let letras = 0;
+  let total = 0;
+  for (const c of texto) {
+    const b = bytesNoRegistro(c);
+    if (letras >= limite || total + b > bytes) break;
+    saida += c;
+    letras += 1;
+    total += b;
+  }
+  return saida;
+}
+
+/**
+ * Quantas letras ainda cabem no campo: o menor entre o que falta no maxLength
+ * da tela e o que falta no teto de bytes (contando 2 bytes por letra).
+ */
+export function letrasRestantes(texto: string, limite: number): number {
+  const porBytes = Math.floor((limite * BYTES_POR_LETRA - bytesNoRegistro(texto)) / BYTES_POR_LETRA);
+  return Math.max(0, Math.min(limite - texto.length, porBytes));
+}
+
 const CARACTERES_INVISIVEIS = new RegExp(
   '[\\u0000-\\u001F\\u007F-\\u009F\\u200B-\\u200F\\u2028-\\u202E\\u2066-\\u2069]',
   'g',
 );
 
 /** Texto de uma linha: sem caracteres invisíveis, espaços juntados, cortado no limite. */
-function texto(valor: unknown, limite: number): string {
+export function limparTexto(valor: unknown, limite: number, bytes?: number): string {
   if (typeof valor !== 'string') return '';
   const limpo = valor.replace(CARACTERES_INVISIVEIS, ' ').replace(/\s+/g, ' ').trim();
-  // Array.from respeita caracteres fora do BMP ao cortar.
-  return Array.from(limpo).slice(0, limite).join('').trim();
+  return cortarNoLimite(limpo, limite, bytes).trim();
 }
 
 /** Texto longo: mantém quebras de linha, tira só caracteres de controle. */
@@ -316,7 +402,7 @@ function textoLongo(valor: unknown, limite: number): string {
     .filter((c) => c === '\n' || c.charCodeAt(0) >= 32)
     .join('')
     .trim();
-  return Array.from(limpo).slice(0, limite).join('');
+  return cortarNoLimite(limpo, limite);
 }
 
 function umDe<T extends string>(valor: unknown, opcoes: readonly T[]): T | '' {
@@ -341,14 +427,14 @@ const IDS_ITENS = new Set(ITENS.map((i) => i.id));
 export function normalizarVisita(entrada: unknown, agora: string = new Date(0).toISOString()): Visita | null {
   if (typeof entrada !== 'object' || entrada === null || Array.isArray(entrada)) return null;
   const o = entrada as Record<string, unknown>;
-  const id = texto(o.id, 60);
+  const id = limparTexto(o.id, 60, 60);
   if (!id) return null;
 
   const produtorCru =
     typeof o.produtor === 'object' && o.produtor !== null ? (o.produtor as Record<string, unknown>) : {};
   const culturas = Array.isArray(produtorCru.culturas)
     ? produtorCru.culturas
-        .map((c) => texto(c, LIMITES_VISITA.cultura))
+        .map((c) => limparTexto(c, LIMITES_VISITA.cultura))
         .filter(Boolean)
         .slice(0, LIMITES_VISITA.culturas)
     : [];
@@ -369,7 +455,7 @@ export function normalizarVisita(entrada: unknown, agora: string = new Date(0).t
         .filter((n): n is Record<string, unknown> => typeof n === 'object' && n !== null)
         .slice(0, LIMITES_VISITA.naoConformidades)
         .map((n) => ({
-          id: texto(n.id, 60) || novoId(),
+          id: limparTexto(n.id, 60, 60) || novoId(),
           descricao: textoLongo(n.descricao, LIMITES_VISITA.naoConformidade),
           prazo: dataValida(n.prazo) ? n.prazo : '',
         }))
@@ -386,12 +472,12 @@ export function normalizarVisita(entrada: unknown, agora: string = new Date(0).t
     updatedAt,
     ...(instanteValido(o.deletedAt) ? { deletedAt: o.deletedAt } : {}),
     produtor: {
-      nome: texto(produtorCru.nome, LIMITES_VISITA.nome),
-      municipio: texto(produtorCru.municipio, LIMITES_VISITA.municipio),
+      nome: limparTexto(produtorCru.nome, LIMITES_VISITA.nome),
+      municipio: limparTexto(produtorCru.municipio, LIMITES_VISITA.municipio),
       culturas,
     },
     data: dataValida(o.data) ? o.data : '',
-    visitantes: texto(o.visitantes, LIMITES_VISITA.visitantes),
+    visitantes: limparTexto(o.visitantes, LIMITES_VISITA.visitantes),
     tipo: umDe<TipoVisita>(o.tipo, ['pares', 'externo']),
     culturasSensiveis,
     usoArmazenamento: umDe<UsoArmazenamento>(o.usoArmazenamento, ['exclusivo', 'compartilhado']),
