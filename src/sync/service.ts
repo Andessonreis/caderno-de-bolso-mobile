@@ -1,6 +1,7 @@
 // Liga o motor da cópia na internet ao app: quando rodar, o estado que as
-// telas mostram e as ações de ligar outro celular e apagar a cópia.
-// Nada aqui bloqueia a interface: tudo roda em segundo plano.
+// telas mostram e as ações de ligar outro celular e apagar a cópia. Liga
+// também o envio das visitas para o grupo, que corre à parte (um não espera
+// nem trava o outro). Nada aqui bloqueia a interface: tudo roda em segundo plano.
 
 import * as Network from 'expo-network';
 import { useEffect } from 'react';
@@ -13,6 +14,7 @@ import { SyncApi, SyncError } from './api';
 import { serviceConfig } from './config';
 import { credentialStore, createMediaTransport, SYNC_AVAILABLE } from './device';
 import { backoffDelay, type EngineDeps, type SyncOutcome, runSync } from './engine';
+import { canSendToGroup, type GroupDeps, type GroupOutcome, runGroupSend } from './grupo';
 import type { Credentials } from './links';
 
 export type SyncPhase = 'parado' | 'enviando' | 'sem_internet' | 'erro' | 'chave';
@@ -116,19 +118,28 @@ export function useSyncTriggers(): void {
       const online = Boolean(s.isConnected) && s.isInternetReachable !== false;
       const was = useSyncStatus.getState().online;
       useSyncStatus.setState({ online });
-      if (online && was !== true) requestSync();
+      if (online && was !== true) {
+        requestSync();
+        requestGroupSend();
+      }
       if (!online && useSyncStatus.getState().fase !== 'chave') useSyncStatus.setState({ fase: 'sem_internet' });
+      if (!online && useGroupStatus.getState().fase !== 'nao_encontrado') useGroupStatus.setState({ fase: 'sem_internet' });
     };
     Network.getNetworkStateAsync().then(setOnline, () => undefined);
     const net = Network.addNetworkStateListener(setOnline);
     const app = AppState.addEventListener('change', (s) => {
-      if (s === 'active') requestSync();
+      if (s === 'active') {
+        requestSync();
+        requestGroupSend();
+      }
     });
     const unsub = useApp.subscribe((s, prev) => {
       const last = s.pendingChanges.at(-1)?.id;
       if (last && last !== prev.pendingChanges.at(-1)?.id) requestSync(DEBOUNCE_MS);
+      if (s.peerVisits !== prev.peerVisits) requestGroupSend(DEBOUNCE_MS);
     });
     requestSync();
+    requestGroupSend();
     return () => {
       net.remove();
       app.remove();
@@ -185,4 +196,113 @@ export async function deleteCloudCopy(): Promise<'ok' | 'sem_internet' | 'erro'>
   useApp.getState().resetSyncProgress();
   useSyncStatus.setState({ fase: 'parado' });
   return 'ok';
+}
+
+// ---------- Envio das visitas para o grupo ----------
+
+/** `nao_encontrado`: o código não vale mais (grupo apagado ou código errado). O envio para até entrar de novo. */
+export type GroupPhase = 'parado' | 'enviando' | 'sem_internet' | 'erro' | 'nao_encontrado';
+
+export const useGroupStatus = create<{ fase: GroupPhase }>(() => ({ fase: 'parado' }));
+
+const groupDeps: GroupDeps = {
+  api,
+  store: {
+    get: () => useApp.getState(),
+    markSent: (codigo, sent) => useApp.getState().markSentToGroup(codigo, sent),
+  },
+};
+
+let groupCurrent: Promise<GroupOutcome | null> = Promise.resolve(null);
+let groupRunning = false;
+let groupFailures = 0;
+let groupTimer: ReturnType<typeof setTimeout> | null = null;
+
+function canRunGroup(): boolean {
+  const st = useApp.getState();
+  return SYNC_AVAILABLE && st.hydrated && canSendToGroup(st) && useGroupStatus.getState().fase !== 'nao_encontrado';
+}
+
+async function executeGroup(): Promise<GroupOutcome | null> {
+  if (!canRunGroup()) return null;
+  groupRunning = true;
+  useGroupStatus.setState({ fase: 'enviando' });
+  try {
+    const out = await runGroupSend(groupDeps);
+    groupFailures = 0;
+    useGroupStatus.setState({ fase: 'parado' });
+    return out;
+  } catch (e) {
+    const kind = e instanceof SyncError ? e.kind : 'servidor';
+    if (kind === 'chave') {
+      // Grupo apagado ou código errado: não insiste nem apaga nada; a tela pede o código de novo.
+      useGroupStatus.setState({ fase: 'nao_encontrado' });
+      return null;
+    }
+    groupFailures += 1;
+    useGroupStatus.setState({ fase: kind === 'rede' ? 'sem_internet' : 'erro' });
+    scheduleGroup(backoffDelay(groupFailures));
+    return null;
+  } finally {
+    groupRunning = false;
+  }
+}
+
+function scheduleGroup(delay: number) {
+  if (groupTimer) clearTimeout(groupTimer);
+  groupTimer = setTimeout(() => {
+    groupTimer = null;
+    requestGroupSend();
+  }, delay);
+}
+
+/** Pede um envio para o grupo (agora ou depois de `delay`). Pedidos repetidos se juntam. */
+export function requestGroupSend(delay = 0): void {
+  if (!canRunGroup()) return;
+  if (delay > 0) {
+    scheduleGroup(delay);
+    return;
+  }
+  if (groupRunning) {
+    scheduleGroup(DEBOUNCE_MS);
+    return;
+  }
+  groupCurrent = groupCurrent.then(executeGroup, executeGroup);
+}
+
+/** Envia agora e espera terminar. */
+export async function sendToGroupNow(): Promise<GroupOutcome | null> {
+  await groupCurrent.catch(() => null);
+  groupCurrent = executeGroup();
+  return groupCurrent;
+}
+
+export type GroupCheck = { ok: true; nome: string } | { ok: false; motivo: 'nao_encontrado' | 'sem_internet' | 'erro' };
+
+/** Confere o código no servidor (precisa de internet) e devolve o nome do grupo. */
+export async function checkGroup(codigo: string): Promise<GroupCheck> {
+  try {
+    return { ok: true, nome: await api.grupoConferir(codigo) };
+  } catch (e) {
+    if (e instanceof SyncError && e.kind === 'chave') return { ok: false, motivo: 'nao_encontrado' };
+    if (e instanceof SyncError && e.kind === 'rede') return { ok: false, motivo: 'sem_internet' };
+    return { ok: false, motivo: 'erro' };
+  }
+}
+
+/** Entra no grupo (código já conferido) e começa a enviar as visitas. */
+export function enterGroup(codigo: string, nome: string): void {
+  useApp.getState().joinGroup(codigo, nome);
+  groupFailures = 0;
+  useGroupStatus.setState({ fase: 'parado' });
+  requestGroupSend();
+}
+
+/** Para de enviar para o grupo. O que já foi enviado continua com o grupo. */
+export function leaveGroup(): void {
+  useApp.getState().leaveGroup();
+  if (groupTimer) clearTimeout(groupTimer);
+  groupTimer = null;
+  groupFailures = 0;
+  useGroupStatus.setState({ fase: 'parado' });
 }
