@@ -1,4 +1,5 @@
 import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
+import { router } from 'expo-router';
 import { renderRouter } from 'expo-router/testing-library';
 import path from 'node:path';
 import { AppState, BackHandler, Linking } from 'react-native';
@@ -375,6 +376,14 @@ describe('telas do app', () => {
     expect(await screen.findByText(/precisa da permissão da câmera/)).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('Abrir configurações'));
     expect(abrir.mock.calls.length).toBe(antes + 1);
+  });
+
+  it('a aba Visita troca de lado quando o link pede outro modo', async () => {
+    await act(() => useApp.getState().loadSample('2026-11-20'));
+    await renderRouter(APP_DIR, { initialUrl: '/visita' });
+    expect(await screen.findByText('Pronto para a visita')).toBeTruthy();
+    await act(() => router.navigate({ pathname: '/visita', params: { modo: 'outra' } }));
+    expect(await screen.findByText('Nenhuma visita ainda')).toBeTruthy();
   });
 
   it('visita grande demais para a internet ganha um aviso na lista e no resumo', async () => {

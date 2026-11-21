@@ -71,8 +71,13 @@ type Modo = 'minha' | 'outra';
  * visitar outro produtor).
  */
 export default function Visita() {
-  const params = useLocalSearchParams<{ modo?: string }>();
-  const [modo, setModo] = useState<Modo>(params.modo === 'outra' ? 'outra' : 'minha');
+  const { modo } = useLocalSearchParams<{ modo?: string }>();
+  // A aba pode já estar aberta: um modo novo no link refaz a aba já nele.
+  return <AbaVisita key={modo ?? ''} modoInicial={modo === 'outra' ? 'outra' : 'minha'} />;
+}
+
+function AbaVisita({ modoInicial }: { modoInicial: Modo }) {
+  const [modo, setModo] = useState<Modo>(modoInicial);
   const deletePeerVisit = useApp((s) => s.deletePeerVisit);
   const restorePeerVisit = useApp((s) => s.restorePeerVisit);
   const [toDelete, setToDelete] = useState<VisitaPar | null>(null);
