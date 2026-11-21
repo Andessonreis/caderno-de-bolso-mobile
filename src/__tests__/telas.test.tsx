@@ -5,7 +5,8 @@ import path from 'node:path';
 import { AppState, BackHandler, Linking } from 'react-native';
 
 import { encodeFicha } from '@/lib/ficha';
-import { novaVisita } from '@/lib/roteiro';
+import { type Visita, novaVisita } from '@/lib/roteiro';
+import { useGroupStatus } from '@/sync/service';
 import { useApp } from '@/store';
 
 // A primeira renderização carrega todas as rotas e pode passar de 5 s em máquina lenta.
@@ -19,6 +20,31 @@ type DubleCamera = {
 };
 const { dubleCamera } = jest.requireMock('expo-camera') as { dubleCamera: DubleCamera };
 
+const semInternet = () => Promise.reject(new TypeError('sem internet nos testes'));
+
+/** Serviço do grupo de mentira: conhece só o código ABCDE-23456. */
+function servidorDoGrupo() {
+  const recebidas: string[] = [];
+  jest.mocked(global.fetch).mockImplementation(async (url, init) => {
+    const body = JSON.parse(String(init?.body)) as { p_codigo: string; p_visitas?: { id: string }[] };
+    const conhecido = body.p_codigo === 'ABCDE23456';
+    if (String(url).endsWith('/caderno_grupo_conferir') && conhecido)
+      return new Response(JSON.stringify({ nome: 'Núcleo Pé de Serra' }), { status: 200 });
+    if (String(url).endsWith('/caderno_grupo_enviar') && conhecido) {
+      recebidas.push(...(body.p_visitas ?? []).map((v) => v.id));
+      return new Response(JSON.stringify({ recebidas: body.p_visitas?.length ?? 0 }), { status: 200 });
+    }
+    return new Response(JSON.stringify({ code: '28000', message: 'grupo_nao_encontrado' }), { status: 401 });
+  });
+  return recebidas;
+}
+
+function visitaDe(nome: string): Visita {
+  const v = novaVisita(new Date('2026-11-20T10:00:00'));
+  v.produtor.nome = nome;
+  return v;
+}
+
 async function resetStore() {
   await act(() => {
     useApp.getState().resetAll();
@@ -29,9 +55,13 @@ async function resetStore() {
 describe('telas do app', () => {
   // Os testes de tela nunca falam com a internet (o teste real é o `npm run test:rede`).
   beforeAll(() => {
-    global.fetch = jest.fn(() => Promise.reject(new TypeError('sem internet nos testes'))) as unknown as typeof fetch;
+    global.fetch = jest.fn(semInternet) as unknown as typeof fetch;
   });
   beforeEach(resetStore);
+  afterEach(() => {
+    jest.mocked(global.fetch).mockImplementation(semInternet);
+    useGroupStatus.setState({ fase: 'parado' });
+  });
 
   it('primeiro uso leva às boas-vindas e carrega os dados de exemplo', async () => {
     await renderRouter(APP_DIR, { initialUrl: '/' });
@@ -401,5 +431,116 @@ describe('telas do app', () => {
     await fireEvent.press(screen.getByLabelText('Continuar'));
     await fireEvent.press(await screen.findByLabelText('Resumo da visita'));
     expect(await screen.findByText(aviso)).toBeTruthy();
+  });
+  it('entra no grupo pelo código, com confirmação, e avisa sem internet ou código errado', async () => {
+    await act(() => useApp.getState().completeOnboarding({ name: 'Ana' }, [], []));
+    await renderRouter(APP_DIR, { initialUrl: '/visita?modo=outra' });
+    expect(await screen.findByText('Enviar as visitas para o grupo')).toBeTruthy();
+    const campo = screen.getByLabelText('Código do grupo');
+
+    await fireEvent.changeText(campo, 'abc');
+    await fireEvent.press(screen.getByLabelText('Entrar no grupo'));
+    expect(await screen.findByText(/O código tem 10 letras e números/)).toBeTruthy();
+
+    await fireEvent.changeText(campo, 'abcde 23456');
+    expect(screen.getByDisplayValue('ABCDE-23456')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Entrar no grupo'));
+    expect(await screen.findByText(/Sem internet agora/)).toBeTruthy();
+    expect(useApp.getState().grupo).toBeNull();
+
+    servidorDoGrupo();
+    await fireEvent.changeText(campo, 'XYZWV-23456');
+    await fireEvent.press(screen.getByLabelText('Entrar no grupo'));
+    expect(await screen.findByText(/não é de nenhum grupo/)).toBeTruthy();
+
+    await fireEvent.changeText(campo, 'cadernodebolso://grupo?c=ABCDE-23456');
+    expect(screen.getByDisplayValue('ABCDE-23456')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Entrar no grupo'));
+    expect(await screen.findByText(/Quem coordena o grupo vai ver o que foi preenchido, inclusive o nome do produtor/)).toBeTruthy();
+    expect(useApp.getState().grupo).toBeNull();
+    await fireEvent.press(screen.getByLabelText('Sim'));
+    expect(useApp.getState().grupo).toMatchObject({ codigo: 'ABCDE23456', nome: 'Núcleo Pé de Serra' });
+    expect(await screen.findByText('Tudo enviado ao grupo')).toBeTruthy();
+    expect(screen.getByText('Grupo: Núcleo Pé de Serra')).toBeTruthy();
+  });
+
+  it('mostra o que já foi para o grupo e sai do grupo com confirmação', async () => {
+    await act(() => {
+      useApp.getState().completeOnboarding({ name: 'Ana' }, [], []);
+      useApp.getState().savePeerVisit(visitaDe('Rosa'));
+      useApp.getState().savePeerVisit(visitaDe('Joana'));
+      useApp.getState().joinGroup('ABCDE23456', 'Núcleo Pé de Serra');
+      const rosa = useApp.getState().peerVisits.find((v) => v.produtor.nome === 'Rosa')!;
+      useApp.getState().markSentToGroup('ABCDE23456', [
+        { id: rosa.id, dados: {}, atualizado_em: rosa.updatedAt, apagado_em: null },
+      ]);
+    });
+    await renderRouter(APP_DIR, { initialUrl: '/visita?modo=outra' });
+    expect(await screen.findByText('Grupo: Núcleo Pé de Serra')).toBeTruthy();
+    expect(screen.getAllByText('Enviada ao grupo')).toHaveLength(1);
+    expect(screen.getAllByText('Falta enviar ao grupo')).toHaveLength(1);
+    // O celular dos testes está sem internet.
+    expect(await screen.findByText('Sem internet: envio depois')).toBeTruthy();
+
+    await fireEvent.press(screen.getByLabelText('Sair do grupo'));
+    expect(await screen.findByText(/O que já foi enviado continua com a coordenação do grupo/)).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Sim, sair do grupo'));
+    expect(useApp.getState().grupo).toBeNull();
+    expect(useApp.getState().grupoEnviadas).toEqual({});
+    expect(useApp.getState().peerVisits.filter((v) => !v.deletedAt)).toHaveLength(2);
+    expect(await screen.findByText('Enviar as visitas para o grupo')).toBeTruthy();
+    expect(screen.queryByText('Enviada ao grupo')).toBeNull();
+  });
+
+  it('resumo da visita diz se ela já foi para o grupo', async () => {
+    const v = visitaDe('Rosa');
+    await act(() => {
+      useApp.getState().completeOnboarding({ name: 'Ana' }, [], []);
+      useApp.getState().savePeerVisit(v);
+      useApp.getState().joinGroup('ABCDE23456', 'Núcleo Pé de Serra');
+    });
+    await renderRouter(APP_DIR, { initialUrl: `/visita-par/${v.id}` });
+    await fireEvent.press(await screen.findByLabelText('Resumo da visita'));
+    expect(await screen.findByText('Falta enviar ao grupo')).toBeTruthy();
+  });
+
+  it('grupo não encontrado pede o código de novo sem apagar nada', async () => {
+    await act(() => {
+      useApp.getState().completeOnboarding({ name: 'Ana' }, [], []);
+      useApp.getState().savePeerVisit(visitaDe('Rosa'));
+      useApp.getState().joinGroup('ABCDE23456', 'Núcleo Pé de Serra');
+      useGroupStatus.setState({ fase: 'nao_encontrado' });
+    });
+    await renderRouter(APP_DIR, { initialUrl: '/visita?modo=outra' });
+    expect(await screen.findByText(/não vale mais/)).toBeTruthy();
+    expect(screen.getByLabelText('Código do grupo')).toBeTruthy();
+    expect(screen.getByText('Rosa')).toBeTruthy();
+    expect(useApp.getState().grupo?.codigo).toBe('ABCDE23456');
+  });
+
+  it('o link cadernodebolso://grupo abre a tela com o código, também com a tela já aberta', async () => {
+    await act(() => useApp.getState().completeOnboarding({ name: 'Ana' }, [], []));
+    servidorDoGrupo();
+    await renderRouter(APP_DIR, { initialUrl: '/grupo?c=XYZWV-23456' });
+    expect(await screen.findByDisplayValue('XYZWV-23456')).toBeTruthy();
+    await act(() => router.navigate({ pathname: '/grupo', params: { c: 'ABCDE-23456' } }));
+    expect(await screen.findByDisplayValue('ABCDE-23456')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Entrar no grupo'));
+    await fireEvent.press(await screen.findByLabelText('Sim'));
+    expect(await screen.findByText('Pronto!')).toBeTruthy();
+    expect(useApp.getState().grupo?.nome).toBe('Núcleo Pé de Serra');
+  });
+
+  it('lê o código do grupo com a câmera', async () => {
+    dubleCamera.permissao = { granted: true, canAskAgain: true, status: 'granted' };
+    await act(() => useApp.getState().completeOnboarding({ name: 'Ana' }, [], []));
+    await renderRouter(APP_DIR, { initialUrl: '/grupo' });
+    await fireEvent.press(await screen.findByLabelText('Ler o código com a câmera'));
+    expect(await screen.findByText('Aponte para o código do grupo')).toBeTruthy();
+    await act(() => dubleCamera.props?.onBarcodeScanned?.({ data: 'https://exemplo.com/outra-coisa' }));
+    expect(screen.getByText('Aponte para o código do grupo')).toBeTruthy();
+    await act(() => dubleCamera.props?.onBarcodeScanned?.({ data: 'cadernodebolso://grupo?c=ABCDE-23456' }));
+    expect(await screen.findByDisplayValue('ABCDE-23456')).toBeTruthy();
+    dubleCamera.permissao = { granted: false, canAskAgain: false, status: 'denied' };
   });
 });

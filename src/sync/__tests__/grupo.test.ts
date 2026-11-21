@@ -4,6 +4,7 @@ import { useApp } from '@/store';
 
 import { SyncApi } from '../api';
 import { type GroupDeps, type GroupState, runGroupSend } from '../grupo';
+import { groupLabel } from '../label';
 import { requestGroupSend, sendToGroupNow, syncNow, useGroupStatus } from '../service';
 
 const T0 = '2026-11-01T10:00:00.000Z';
@@ -208,5 +209,20 @@ describe('envio para o grupo no app', () => {
     requestGroupSend();
     await sendToGroupNow();
     expect(server.rows.size).toBe(0);
+  });
+});
+
+describe('frase do grupo', () => {
+  const base = { fase: 'parado' as const, online: true, faltam: 0, exemplo: false };
+  it('cobre os estados', () => {
+    expect(groupLabel(base).text).toBe('Tudo enviado ao grupo');
+    expect(groupLabel({ ...base, online: false }).text).toBe('Tudo enviado ao grupo');
+    expect(groupLabel({ ...base, faltam: 1 }).text).toBe('Falta 1 para enviar');
+    expect(groupLabel({ ...base, faltam: 3 }).text).toBe('Faltam 3 para enviar');
+    expect(groupLabel({ ...base, faltam: 3, online: false }).text).toBe('Sem internet: envio depois');
+    expect(groupLabel({ ...base, faltam: 3, fase: 'enviando' }).text).toBe('Enviando ao grupo…');
+    expect(groupLabel({ ...base, faltam: 3, fase: 'erro' }).tone).toBe('aviso');
+    expect(groupLabel({ ...base, fase: 'nao_encontrado' }).tone).toBe('aviso');
+    expect(groupLabel({ ...base, faltam: 3, exemplo: true }).text).toBe('Com os dados de exemplo, nada vai para o grupo');
   });
 });

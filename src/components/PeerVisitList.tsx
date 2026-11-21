@@ -10,6 +10,7 @@ import { colors, radius, space } from '@/theme';
 import { AppText } from './AppText';
 import { Button } from './Button';
 import { EmptyState } from './EmptyState';
+import { GroupCard, VisitGroupStatus } from './GroupCard';
 import { ProgressBar } from './StepProgress';
 
 /** Abre o roteiro de uma visita. */
@@ -49,6 +50,8 @@ export function PeerVisitList({ onAskDelete }: PeerVisitListProps) {
 
       <Button label="Começar uma visita" icon="plus" size="xl" onPress={start} />
 
+      <GroupCard />
+
       <AppText variant="heading">Visitas guardadas neste celular</AppText>
       {visits.length === 0 ? (
         <EmptyState
@@ -76,6 +79,7 @@ export function PeerVisitList({ onAskDelete }: PeerVisitListProps) {
                   Esta visita ficou grande demais para a cópia na internet. Ela continua guardada neste celular.
                 </AppText>
               ) : null}
+              <VisitGroupStatus visita={v} />
               <View style={styles.actions}>
                 <Button
                   label="Continuar"

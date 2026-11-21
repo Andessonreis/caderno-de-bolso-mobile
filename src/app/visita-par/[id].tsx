@@ -9,6 +9,7 @@ import { Button } from '@/components/Button';
 import { ChoiceTile } from '@/components/ChoiceTile';
 import { DateStepper } from '@/components/DateStepper';
 import { Field, type FieldInput } from '@/components/Field';
+import { VisitGroupStatus } from '@/components/GroupCard';
 import { Icon } from '@/components/Icon';
 import { Screen } from '@/components/Screen';
 import { ProgressBar } from '@/components/StepProgress';
@@ -417,6 +418,7 @@ export default function VisitaPar() {
             busy={busy}
           />
         ) : null}
+        {indice === RESUMO ? <VisitGroupStatus visita={visita} /> : null}
       </Screen>
     </RascunhosContext>
   );
