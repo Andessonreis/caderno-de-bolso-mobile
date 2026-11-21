@@ -46,6 +46,8 @@ flowchart TD
     Visita -- Visitar outra roça --> Lista[Lista de visitas a outras roças]
     Lista -- Começar uma visita / Continuar --> Roteiro[Roteiro de visita: 7 etapas e resumo]
     Roteiro -- Lista de visitas --> Lista
+    Lista -- cartão Grupo: Ler o código com a câmera --> Grupo[Enviar as visitas para o grupo]
+    Grupo -- Ver as visitas --> Lista
     Visita -- itens com falta --> Caderno
     Visita -- itens com falta --> Resumos
     Visita -- itens com falta --> CS[Cópia de segurança]
@@ -300,9 +302,9 @@ Funciona sem internet.
 
 Você chega aqui pela aba Visita, tocando em **Visitar outra roça**, ou pelo botão **Lista de visitas** de dentro de uma visita. É o lado de quem **vai visitar a roça de outro produtor** do grupo: o produtor visitado é avaliado, não você.
 
-**O que aparece:** as duas escolhas no alto, o título "Visitar outra roça" e um quadro que explica que é para quando você for visitar a roça de outro produtor, que as perguntas se respondem com um toque e que tudo fica salvo no celular na hora, sem internet. O quadro também lembra que é um **roteiro de apoio** e que não substitui o roteiro nem os documentos oficiais do seu grupo (OPAC). Abaixo, o botão grande **Começar uma visita** e a parte **Visitas guardadas neste celular**.
+**O que aparece:** as duas escolhas no alto, o título "Visitar outra roça" e um quadro que explica que é para quando você for visitar a roça de outro produtor, que as perguntas se respondem com um toque e que tudo fica salvo no celular na hora, sem internet. O quadro também lembra que é um **roteiro de apoio** e que não substitui o roteiro nem os documentos oficiais do seu grupo (OPAC). Abaixo, o botão grande **Começar uma visita**, o cartão **Grupo** (veja [Enviar as visitas para o grupo](#enviar-as-visitas-para-o-grupo)) e a parte **Visitas guardadas neste celular**.
 
-Sem visitas, aparece "Nenhuma visita ainda", explicando que dá para começar quando chegar na roça e continuar depois. Com visitas, cada uma vem num cartão com o nome do produtor (ou "Produtor sem nome"), a data por extenso, o município, uma barra de progresso e "N de M respondidas". A mais recente fica em cima.
+Sem visitas, aparece "Nenhuma visita ainda", explicando que dá para começar quando chegar na roça e continuar depois. Com visitas, cada uma vem num cartão com o nome do produtor (ou "Produtor sem nome"), a data por extenso, o município, uma barra de progresso e "N de M respondidas". Quando o celular está num grupo, o cartão diz também **Enviada ao grupo** ou **Falta enviar ao grupo**, com ícone. A mais recente fica em cima.
 
 **Ações:**
 
@@ -365,9 +367,31 @@ Depois, **Pontos fortes** (o que a família está fazendo bem), **Observações*
 
 Se tudo foi respondido, aparece "Tudo respondido. Pode gerar o PDF." Senão, aparece "Faltam N respostas", com o que ficou em branco agrupado por etapa e, em cada grupo, **Responder agora**, que leva direto àquela etapa. A tela avisa que dá para gerar o PDF assim mesmo: o que ficou sem resposta sai em branco.
 
+Quando o celular está num grupo, o resumo diz se a visita já foi enviada ao grupo.
+
 **Gerar PDF da visita** monta a folha e abre o compartilhar (WhatsApp, salvar, imprimir...). A folha traz os dados da visita, uma tabela por etapa com pergunta, resposta e observação, as não conformidades com prazo, pontos fortes, observações, o parecer marcado e três linhas de assinatura: produtor visitado e duas de quem visitou. O rodapé lembra que é um roteiro de apoio e não substitui o roteiro nem os documentos oficiais do grupo.
 
 **Sem internet:** todas as etapas, a leitura do QR, o resumo e o PDF funcionam sem internet. As visitas entram na cópia de segurança e, com a cópia na internet ligada, também vão para a internet. Se a mesma visita for mexida em dois celulares, vale a última versão salva.
+
+## Enviar as visitas para o grupo
+
+Só no app do celular. Serve para o grupo (núcleo, associação ou cooperativa) juntar num lugar só as visitas feitas por todos os produtores. Quem coordena cria o grupo no site, na página `/grupo`, e passa o código aos produtores. O código tem 10 letras e números e aparece como `XXXXX-XXXXX`. Quem tem o código só envia: o app nunca mostra as visitas dos outros produtores. Quem lê as visitas é a coordenação, no site.
+
+**Sem grupo:** o cartão **Grupo**, na lista de visitas, mostra "Enviar as visitas para o grupo", o campo **Código do grupo** e os botões **Entrar no grupo** e **Ler o código com a câmera**.
+
+1. **Digitar o código:** o campo põe o código em maiúsculas e com o traço enquanto se digita. Colar o link inteiro também funciona. Código com formato errado gera "O código tem 10 letras e números, como ABCDE-23456".
+2. **Entrar no grupo:** confere o código na internet. Sem internet, a tela explica que é preciso sinal para entrar e que as visitas continuam no celular. Código que não é de nenhum grupo pede para conferir com quem coordena.
+3. **Confirmar:** aparece "Grupo: nome do grupo" e o aviso "As visitas que você fizer serão enviadas para a coordenação de nome do grupo. Quem coordena o grupo vai ver o que foi preenchido, inclusive o nome do produtor visitado.", com **Sim** e **Não**. Só depois do **Sim** o celular entra no grupo.
+
+**Ler o código com a câmera** abre a tela "Enviar as visitas para o grupo", que lê o QR com o link `cadernodebolso://grupo?c=XXXXX-XXXXX` ou só o código. Abrir esse link no celular leva à mesma tela, com o código já preenchido. Depois do **Sim**, a tela mostra "Pronto!" e **Ver as visitas**.
+
+**No grupo:** o cartão mostra "Grupo: nome do grupo" e uma linha com o estado do envio: "Tudo enviado ao grupo", "Faltam N para enviar", "Enviando ao grupo…" ou "Sem internet: envio depois". **Sair do grupo** pergunta antes: as visitas deixam de ir para o grupo, o que já foi enviado continua com a coordenação e as visitas continuam no celular.
+
+**O que vai para o grupo:** cada visita que tem o nome do produtor visitado, sempre que ela muda. Uma visita começada e deixada sem nome não vai. Apagar uma visita que já tinha ido avisa o grupo, sem levar os dados. Visita grande demais para o envio fica de fora e o cartão dela avisa. Com os dados de exemplo, nada vai para o grupo.
+
+O envio é automático e independe da cópia na internet: funciona mesmo com ela desligada, porque entrar no grupo já é o aceite. Ele acontece ao abrir o app, quando a internet volta, quando o app volta para a frente e alguns segundos depois de salvar uma visita. Sem internet, espera e tenta depois. Se o grupo for apagado ou o código deixar de valer, o envio para, o cartão explica e pede o código de novo. Nada é apagado do celular.
+
+O código do grupo vai no arquivo da cópia de segurança, junto com os dados. Ele não vai na cópia na internet.
 
 ## Mais
 
@@ -484,7 +508,7 @@ Aparece se um link aberto não corresponde a nenhuma tela. Explica que as anota�
 | Anotar, com foto e recado de voz | Ligar outro celular e "Já tenho um caderno" |
 | Caderno, filtros, editar e apagar | Apagar a cópia da internet |
 | Resumos, PDF, compartilhar e imprimir | O comprador abrir a ficha lida no QR |
-| Colheita e venda | |
+| Colheita e venda | Entrar no grupo e enviar as visitas para ele (o envio espera o sinal voltar) |
 | Lista da visita e PDF da visita | |
 | Roteiro de visita a outra roça, leitura do QR da ficha e PDF da visita | |
 | Mostrar o QR da ficha e o cartão | |

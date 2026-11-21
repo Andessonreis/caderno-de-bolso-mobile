@@ -48,6 +48,7 @@ O Caderno de Bolso é um ajudante do caderno de campo, não um substituto. O pro
 - Itens que o produtor marca: notas e recibos, declarações de transação, plano de manejo, separação de produto convencional e pendências da última visita.
 - PDF "Resumo para a visita", com dados do produtor, a lista e as anotações desde a última visita.
 - **Visitar outra roça:** a aba Visita tem duas escolhas no alto, **Minha roça** (a lista acima) e **Visitar outra roça**, para quando o produtor vai visitar a roça de outro do grupo. Ali fica o roteiro de apoio à visita, com as mesmas perguntas do site, em sete etapas: quem e quando, documentos, sementes e mudas, insumos e manejo, colheita, armazenamento e transporte, controle e fechamento. Cada pergunta se responde com um toque (Sim, Em parte, Não, Não se aplica), com observação se quiser. Perguntas que dependem da roça só aparecem quando fazem sentido. Os dados do produtor visitado vêm do QR da ficha dele, lido com a câmera. No fechamento entram o que precisa corrigir, com prazo, e o parecer. O resumo mostra o que falta e gera um PDF com linhas de assinatura. Funciona sem internet, salva a cada toque e entra na cópia de segurança e na cópia na internet.
+- **Enviar as visitas para o grupo:** com o código que a coordenação do grupo passa (digitado, lido no QR ou aberto pelo link `cadernodebolso://grupo?c=...`), as visitas com o nome do produtor vão sozinhas para a coordenação sempre que houver sinal, mesmo com a cópia na internet desligada. Cada visita mostra se já foi enviada ao grupo; sair do grupo para o envio, e o que já foi continua com a coordenação.
 
 ### Ficha do produtor (QR)
 
@@ -178,7 +179,7 @@ Para celular novo ou segundo aparelho.
 
 ## Decisões de engenharia
 
-**Offline primeiro.** Tudo é gravado no aparelho primeiro e todas as funções de anotar e consultar rodam sem sinal. A internet só entra na cópia na internet (que espera o sinal e nunca trava a tela), em ligar outro celular e quando o comprador abre a ficha lida no QR.
+**Offline primeiro.** Tudo é gravado no aparelho primeiro e todas as funções de anotar e consultar rodam sem sinal. A internet só entra na cópia na internet e no envio das visitas para o grupo (os dois esperam o sinal e nunca travam a tela), em ligar outro celular, ao entrar num grupo e quando o comprador abre a ficha lida no QR.
 
 **Anotar por seleção.** Um dos produtores entrevistados disse que prefere só selecionar a cultura e digitar a quantidade, e outro achou os aplicativos que conhece complexos. Por isso a anotação é feita com toques, e só a quantidade é digitada. Uma colheita numa roça com uma área leva quatro toques além dos números.
 
@@ -192,6 +193,8 @@ Para celular novo ou segundo aparelho.
 - **Migração:** os dados salvos por versões anteriores do app são migrados automaticamente (`src/lib/migrate.ts`).
 
 **Mídia por caminho relativo.** Fotos e áudios ficam na pasta de documentos do app. Os registros guardam só `anotacoes/…`, `caderno/…` ou `audios/…`, e o endereço completo é montado na hora de exibir. Assim a mídia sobrevive a atualizações do app e viaja na cópia de segurança. Ao editar ou apagar uma anotação, a foto e o recado antigos só saem do aparelho depois que o prazo do "Desfazer" passa.
+
+**Visitas do grupo com dois segredos.** O grupo (núcleo, associação ou cooperativa) é criado no site por quem coordena e tem dois segredos: o **código do grupo**, curto (10 letras e números, sem I, L, O, 0 e 1), que os produtores digitam no app e que só serve para **enviar** visitas; e a **chave da coordenação**, longa, que fica no link da coordenação e é a única que **lê** as visitas reunidas. O servidor guarda só o resumo (sha256) dos dois, e as tabelas não têm acesso direto: tudo passa pelas funções de [`supabase/migrations/0002_caderno_grupos.sql`](supabase/migrations/0002_caderno_grupos.sql). O envio (`src/sync/grupo.ts`) corre numa fila própria, ao lado da cópia na internet, com os mesmos gatilhos e a mesma espera crescente, em lotes de até 50; vale a alteração mais recente. O app guarda, para cada visita, a versão que o grupo aceitou, e só reenvia o que mudou. O código fica nos ajustes do aparelho e na cópia de segurança, não nos registros da cópia na internet.
 
 **Lógica pura e testada.** Datas, resumos, saldo de colheita e venda, lista da visita, ficha do QR, migração, repositório, arquivo de cópia e HTML dos PDFs são funções puras em `src/lib` e `src/data`, sem dependência de tela. As telas só chamam essas funções. Os resumos apenas agrupam e somam o que foi anotado.
 
@@ -251,7 +254,8 @@ src/
                        ficha, mídia, migração, cópia de segurança, PDFs
   lib/device.ts        acesso ao aparelho: câmera, microfone, arquivos, PDF, compartilhar
   sync/                cópia na internet: contrato com o servidor (api), junção e lotes (records),
-                       motor (engine), gatilhos e estado (service), código de ligar (links)
+                       motor (engine), envio ao grupo (grupo), gatilhos e estado (service),
+                       código de ligar (links)
   store/               estado do app e persistência
 supabase/migrations/   tabelas, funções e regras de acesso do serviço
 docs/                  fluxos por tela e capturas
@@ -294,7 +298,7 @@ O QR da ficha aponta para `EXPO_PUBLIC_WEB_URL`, por padrão `https://andessonre
 
 ```bash
 npm test             # Jest (não usa internet)
-npm run test:rede    # integração com o serviço real: cria um caderno de teste, envia e lê um registro e um arquivo, e apaga tudo no fim
+npm run test:rede    # integração com o serviço real: cria um caderno e um grupo de teste, envia e lê, e apaga tudo no fim
 npm run typecheck    # tsc --noEmit
 npm run lint         # ESLint
 npx expo-doctor      # dependências e configuração
@@ -302,11 +306,11 @@ npx expo-doctor      # dependências e configuração
 
 Os testes de domínio cobrem datas, somas sem misturar unidades, saldo acumulado, lista da visita, ficha (ida e volta com acentos), migração de dados antigos, repositório e fila de alterações, e o arquivo `.zip` de cópia (ida e volta com fotos e áudios, rejeição de arquivos inválidos e de caminhos fora das pastas do app).
 
-A sincronização é testada com um servidor falso que segue as mesmas regras do real. Os testes simulam dois celulares chegando ao mesmo caderno, com fotos e recados, rodadas repetidas sem duplicar nada, dados de exemplo que não sobem, falta de internet sem perda de dados e chave que não confere. Também cobrem a junção por última alteração, os lotes de 200, os registros grandes demais e a camada de rede com `fetch` falso.
+A sincronização é testada com um servidor falso que segue as mesmas regras do real. Os testes simulam dois celulares chegando ao mesmo caderno, com fotos e recados, rodadas repetidas sem duplicar nada, dados de exemplo que não sobem, falta de internet sem perda de dados e chave que não confere. Também cobrem a junção por última alteração, os lotes de 200, os registros grandes demais e a camada de rede com `fetch` falso. O envio para o grupo tem o seu servidor falso: lotes de 50, reenvio só do que mudou, exclusões, visita grande demais, grupo não encontrado, falta de internet e envio com a cópia na internet desligada ou presa.
 
-Os testes de tela abrem cada rota com os dados de exemplo e percorrem o fluxo completo de anotar por toques, salvar e desfazer. Também cobrem a edição de uma anotação já passada a limpo, a troca da data da visita, a pergunta da cópia na internet e o código de ligar outro celular.
+Os testes de tela abrem cada rota com os dados de exemplo e percorrem o fluxo completo de anotar por toques, salvar e desfazer. Também cobrem a edição de uma anotação já passada a limpo, a troca da data da visita, a pergunta da cópia na internet, o código de ligar outro celular e o grupo: entrar pelo código, pelo link e pela câmera, ver o que já foi enviado e sair.
 
-O `npm run test:rede` fala com o serviço de verdade e apaga o caderno de teste no fim.
+O `npm run test:rede` fala com o serviço de verdade e apaga o caderno e o grupo de teste no fim.
 
 ## Próximos passos
 
