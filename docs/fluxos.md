@@ -367,7 +367,7 @@ Se tudo foi respondido, aparece "Tudo respondido. Pode gerar o PDF." Senão, apa
 
 **Gerar PDF da visita** monta a folha e abre o compartilhar (WhatsApp, salvar, imprimir...). A folha traz os dados da visita, uma tabela por etapa com pergunta, resposta e observação, as não conformidades com prazo, pontos fortes, observações, o parecer marcado e três linhas de assinatura: produtor visitado e duas de quem visitou. O rodapé lembra que é um roteiro de apoio e não substitui o roteiro nem os documentos oficiais do grupo.
 
-**Sem internet:** todas as etapas, a leitura do QR, o resumo e o PDF funcionam sem internet. As visitas entram na cópia de segurança e, com a cópia na internet ligada, também vão para a internet.
+**Sem internet:** todas as etapas, a leitura do QR, o resumo e o PDF funcionam sem internet. As visitas entram na cópia de segurança e, com a cópia na internet ligada, também vão para a internet. Se a mesma visita for mexida em dois celulares, vale a última versão salva.
 
 ## Mais
 
