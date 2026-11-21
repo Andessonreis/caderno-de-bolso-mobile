@@ -74,6 +74,19 @@ export function enqueue(queue: Change[], change: Omit<Change, 'id'>, newId: () =
   ];
 }
 
+/**
+ * Guarda a versão de cada visita que o grupo aceitou (id → data da alteração
+ * enviada). Se a visita mudar depois, a data não bate mais e ela vai de novo.
+ */
+export function markAccepted(
+  accepted: Record<string, string>,
+  sent: { id: string; atualizado_em: string }[],
+): Record<string, string> {
+  const next = { ...accepted };
+  for (const r of sent) next[r.id] = r.atualizado_em;
+  return next;
+}
+
 /** Tira da fila as alterações confirmadas pelo servidor. */
 export function acknowledge(queue: Change[], ids: string[]): Change[] {
   const done = new Set(ids);

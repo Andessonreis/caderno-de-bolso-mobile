@@ -1,5 +1,6 @@
 import { DESTINATIONS, INPUTS, INPUT_ORIGINS, MANUAL_CHECKS, PURCHASE_KINDS, SEED_ORIGINS, isUnit } from './catalog';
 import { parseISODate } from './dates';
+import { type Grupo, codigoValido, limparCodigo } from './grupo';
 import { uuid } from './ids';
 import { isRelativeMediaPath, toRelativeMediaPath } from './media';
 import { type MigrationDeps, normalizeRecords } from './migrate';
@@ -29,6 +30,11 @@ export interface BackupData {
   lastVisitDate?: string;
   /** Ausente em arquivos feitos antes do roteiro de visita: aí as visitas do aparelho ficam como estão. */
   peerVisits?: Visita[];
+  /**
+   * Grupo que recebe as visitas (é um ajuste do produtor, como o tamanho da letra).
+   * null = sem grupo. Ausente em arquivos feitos antes do grupo: aí fica o do aparelho.
+   */
+  grupo?: Grupo | null;
 }
 
 const ACTIVITY_KINDS: ActivityKind[] = ['plantio', 'adubacao', 'rega', 'manejo', 'colheita', 'venda', 'compra', 'outra'];
@@ -216,6 +222,9 @@ function parseBackupUnsafe(
     ? raw.peerVisits.map((v) => normalizarVisita(v, exportedAt)).filter((v): v is Visita => v !== null)
     : undefined;
 
+  // Grupo estragado é tratado como arquivo sem o campo: o grupo do aparelho fica.
+  const grupo = raw.grupo === null ? null : parseGrupo(raw.grupo, exportedAt);
+
   return {
     ok: true,
     droppedMedia,
@@ -232,6 +241,13 @@ function parseBackupUnsafe(
       manualChecks,
       lastVisitDate,
       ...(peerVisits ? { peerVisits } : {}),
+      ...(grupo !== undefined ? { grupo } : {}),
     },
   };
+}
+
+function parseGrupo(v: unknown, agora: string): Grupo | undefined {
+  if (!isObj(v) || typeof v.codigo !== 'string' || !codigoValido(v.codigo) || !nonEmpty(v.nome)) return undefined;
+  const ligadoEm = typeof v.ligadoEm === 'string' && !Number.isNaN(Date.parse(v.ligadoEm)) ? v.ligadoEm : agora;
+  return { codigo: limparCodigo(v.codigo), nome: v.nome.trim().slice(0, 80), ligadoEm };
 }

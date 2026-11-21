@@ -1,3 +1,8 @@
+import { exportSnapshot, useApp } from '@/store';
+import { toOutgoing } from '@/sync/records';
+
+import { buildArchive, readArchive } from '../archive';
+import { parseBackup } from '../backup';
 import {
   ALFABETO_GRUPO,
   codigoDoTexto,
@@ -9,6 +14,7 @@ import {
   situacaoNoGrupo,
   visitasParaEnviar,
 } from '../grupo';
+import { migratePersisted } from '../migrate';
 import { type Visita, novaVisita } from '../roteiro';
 
 const T0 = '2026-11-01T10:00:00.000Z';
@@ -96,5 +102,88 @@ describe('o que vai para o grupo', () => {
     expect(sel.grandes).toEqual([grande.id]);
     expect(situacaoNoGrupo(grande, {})).toBe('grande_demais');
     expect(faltamParaGrupo([grande, normal], {})).toBe(1);
+  });
+});
+
+describe('grupo guardado no aparelho', () => {
+  beforeEach(() => useApp.getState().resetAll());
+
+  it('versão 5 → 6: começa sem grupo, sem mexer no resto', () => {
+    const v5 = { entries: [{ id: '1' }], photos: [], peerVisits: [], pendingChanges: [] };
+    expect(migratePersisted(v5, 5)).toEqual({ ...v5, grupo: null, grupoEnviadas: {} });
+  });
+
+  it('entrar, registrar o que o grupo aceitou e sair', () => {
+    const v = visita();
+    useApp.getState().savePeerVisit(v);
+    const salva = useApp.getState().peerVisits[0];
+    useApp.getState().joinGroup('ABCDE23456', 'Núcleo Pé de Serra');
+    expect(useApp.getState().grupo).toMatchObject({ codigo: 'ABCDE23456', nome: 'Núcleo Pé de Serra' });
+
+    useApp.getState().markSentToGroup('ABCDE23456', [{ id: salva.id, dados: {}, atualizado_em: salva.updatedAt, apagado_em: null }]);
+    expect(useApp.getState().grupoEnviadas).toEqual({ [salva.id]: salva.updatedAt });
+    // Resposta de outro grupo (trocou de código no meio do envio) não vale.
+    useApp.getState().markSentToGroup('XYZWV23456', [{ id: 'outra', dados: {}, atualizado_em: T1, apagado_em: null }]);
+    expect(useApp.getState().grupoEnviadas).not.toHaveProperty('outra');
+
+    // Digitar o mesmo código de novo não esquece o que já foi.
+    useApp.getState().joinGroup('ABCDE23456', 'Núcleo Pé de Serra');
+    expect(useApp.getState().grupoEnviadas).toHaveProperty(salva.id);
+
+    useApp.getState().leaveGroup();
+    expect(useApp.getState().grupo).toBeNull();
+    expect(useApp.getState().grupoEnviadas).toEqual({});
+    // As visitas continuam no celular.
+    expect(useApp.getState().peerVisits).toHaveLength(1);
+  });
+
+  it('o código vai na cópia de segurança e volta; não vai na cópia na internet', () => {
+    useApp.getState().completeOnboarding({ name: 'Ana' }, [], []);
+    useApp.getState().joinGroup('ABCDE23456', 'Núcleo Pé de Serra');
+    const data = exportSnapshot(useApp.getState(), T1);
+    const back = readArchive(buildArchive(data, []));
+    if (!back) throw new Error('zip ilegível');
+    const r = parseBackup(back.json);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.data.grupo).toEqual(useApp.getState().grupo);
+
+    // Nenhum registro da cópia na internet leva o código.
+    const st = useApp.getState();
+    const registros = st.pendingChanges.map((c) => JSON.stringify(toOutgoing(c, st)));
+    expect(registros.length).toBeGreaterThan(0);
+    expect(registros.join('')).not.toContain('ABCDE23456');
+
+    useApp.getState().resetAll();
+    useApp.getState().importData(r.data);
+    expect(useApp.getState().grupo).toMatchObject({ codigo: 'ABCDE23456', nome: 'Núcleo Pé de Serra' });
+  });
+
+  it('arquivo sem o campo mantém o grupo do aparelho; grupo estragado é ignorado', () => {
+    useApp.getState().joinGroup('ABCDE23456', 'Núcleo');
+    useApp.getState().markSentToGroup('ABCDE23456', [{ id: 'v', dados: {}, atualizado_em: T0, apagado_em: null }]);
+    const { grupo: _semGrupo, ...antigo } = exportSnapshot(useApp.getState(), T1);
+    const r = parseBackup(JSON.stringify(antigo));
+    if (!r.ok) throw new Error('arquivo recusado');
+    expect(r.data).not.toHaveProperty('grupo');
+    useApp.getState().importData(r.data);
+    expect(useApp.getState().grupo?.codigo).toBe('ABCDE23456');
+    expect(useApp.getState().grupoEnviadas).toEqual({ v: T0 });
+
+    const estragado = parseBackup(JSON.stringify({ ...antigo, grupo: { codigo: 'ERRADO', nome: 'x' } }));
+    expect(estragado.ok && estragado.data).not.toHaveProperty('grupo');
+
+    // Arquivo de outro grupo: o que o grupo anterior aceitou não vale para ele.
+    const outro = parseBackup(JSON.stringify({ ...antigo, grupo: { codigo: 'xyzwv-23456', nome: 'Outro', ligadoEm: T0 } }));
+    if (!outro.ok) throw new Error('arquivo recusado');
+    useApp.getState().importData(outro.data);
+    expect(useApp.getState().grupo).toEqual({ codigo: 'XYZWV23456', nome: 'Outro', ligadoEm: T0 });
+    expect(useApp.getState().grupoEnviadas).toEqual({});
+
+    // Arquivo feito sem grupo: sai do grupo.
+    const semGrupo = parseBackup(JSON.stringify({ ...antigo, grupo: null }));
+    if (!semGrupo.ok) throw new Error('arquivo recusado');
+    useApp.getState().importData(semGrupo.data);
+    expect(useApp.getState().grupo).toBeNull();
   });
 });

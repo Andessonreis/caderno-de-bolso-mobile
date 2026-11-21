@@ -50,13 +50,13 @@ function visitaNoLimite(trecho = 'ção\n"'): Visita {
 describe('visitas guardadas no aparelho', () => {
   it('versão 4 → 5: entra a lista de visitas vazia, sem mexer no resto', () => {
     const v4 = { entries: [{ id: '1' }], photos: [], pendingChanges: [] };
-    expect(migratePersisted(v4, 4)).toEqual({ ...v4, peerVisits: [] });
+    expect(migratePersisted(v4, 4)).toEqual({ ...v4, peerVisits: [], grupo: null, grupoEnviadas: {} });
   });
 
   it('versão 4 → 5: a cópia na internet volta a receber desde o começo, para trazer as visitas', () => {
     const sync = { ligado: true, perguntado: true, cursor: 42, enviados: { 'anotacoes/1.jpg': true } };
     const v4 = { entries: [], photos: [], pendingChanges: [], sync };
-    expect(migratePersisted(v4, 4)).toEqual({ ...v4, peerVisits: [], sync: { ...sync, cursor: 0 } });
+    expect(migratePersisted(v4, 4)).toMatchObject({ ...v4, peerVisits: [], sync: { ...sync, cursor: 0 } });
     // Já na versão 5, o cursor fica como está.
     expect(migratePersisted({ ...v4, peerVisits: [] }, 5)).toMatchObject({ sync: { cursor: 42 } });
   });

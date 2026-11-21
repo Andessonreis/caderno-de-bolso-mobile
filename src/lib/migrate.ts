@@ -4,7 +4,7 @@ import { isUuid, uuid } from './ids';
 import { toRelativeMediaPath } from './media';
 
 /** Versão atual dos dados salvos no aparelho. */
-export const STORAGE_VERSION = 5;
+export const STORAGE_VERSION = 6;
 
 export interface MigrationDeps {
   newId: () => string;
@@ -181,6 +181,11 @@ function v4ToV5(state: Record<string, unknown>): Record<string, unknown> {
   return { ...state, peerVisits, sync: { ...state.sync, cursor: 0 } };
 }
 
+/** Versão 5 → 6: entra o grupo que recebe as visitas (nenhum até o produtor entrar num). */
+function v5ToV6(state: Record<string, unknown>): Record<string, unknown> {
+  return { ...state, grupo: null, grupoEnviadas: {} };
+}
+
 /** Atualiza dados salvos por versões anteriores do app. */
 export function migratePersisted(
   persisted: unknown,
@@ -193,5 +198,6 @@ export function migratePersisted(
   if (fromVersion < 3) state = v2ToV3(state, deps);
   if (fromVersion < 4) state = v3ToV4(state, deps);
   if (fromVersion < 5) state = v4ToV5(state);
+  if (fromVersion < 6) state = v5ToV6(state);
   return state;
 }

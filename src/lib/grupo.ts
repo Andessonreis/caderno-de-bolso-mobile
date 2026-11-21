@@ -2,8 +2,6 @@
 // coordena cria o grupo no site e passa o código aos produtores; quem tem o
 // código só envia, não lê as visitas dos outros. Funções puras.
 
-import { MAX_RECORD_BYTES, visitaDados } from '@/sync/records';
-
 import { type Visita, bytesUtf8 } from './roteiro';
 
 /** Letras e números do código (sem I, L, O, 0 e 1, que se confundem). */
@@ -14,6 +12,9 @@ const CODIGO_RE = new RegExp(`^[${ALFABETO_GRUPO}]{${TAMANHO_CODIGO}}$`);
 
 /** O servidor aceita até 50 visitas por chamada. */
 export const MAX_LOTE_GRUPO = 50;
+
+/** O servidor aceita até 32.768 bytes por visita; a mesma folga da cópia na internet. */
+export const MAX_BYTES_GRUPO = 30_000;
 
 export interface Grupo {
   /** Código limpo, sem traço (ex.: "ABCDE23456"). */
@@ -83,11 +84,16 @@ function semNome(v: Visita): boolean {
   return v.produtor.nome.trim() === '';
 }
 
+function semControle(v: Visita): Record<string, unknown> {
+  const { id: _id, updatedAt: _updatedAt, deletedAt: _deletedAt, ...dados } = v;
+  return dados;
+}
+
 /** Visita (ou exclusão) no formato do servidor. Visita apagada vai sem os dados. */
 export function paraGrupo(v: Visita): VisitaParaGrupo {
   return {
     id: v.id,
-    dados: v.deletedAt ? {} : visitaDados(v),
+    dados: v.deletedAt ? {} : semControle(v),
     atualizado_em: v.updatedAt,
     apagado_em: v.deletedAt ?? null,
   };
@@ -95,7 +101,7 @@ export function paraGrupo(v: Visita): VisitaParaGrupo {
 
 /** Maior do que o servidor aceita por visita (mesma folga da cópia na internet). */
 export function grandeDemaisParaGrupo(r: VisitaParaGrupo): boolean {
-  return bytesUtf8(JSON.stringify(r)) > MAX_RECORD_BYTES;
+  return bytesUtf8(JSON.stringify(r)) > MAX_BYTES_GRUPO;
 }
 
 export type SituacaoNoGrupo =
