@@ -30,8 +30,16 @@ export function newId(): string {
   return uuid();
 }
 
+let lastStamp = 0;
+
+/**
+ * Hora da alteração, sempre maior que a da alteração anterior. Duas gravações no
+ * mesmo milissegundo teriam a mesma hora, e a segunda seria ignorada na junção
+ * com a internet, onde só vale a alteração mais recente.
+ */
 function nowISO(): string {
-  return new Date().toISOString();
+  lastStamp = Math.max(Date.now(), lastStamp + 1);
+  return new Date(lastStamp).toISOString();
 }
 
 export interface AppData {
