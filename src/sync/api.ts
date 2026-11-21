@@ -1,6 +1,8 @@
 // Camada fina de rede da cópia na internet. Só `fetch`, sem SDK, para manter o
 // app leve. O `fetch` é injetável para os testes.
 
+import type { VisitaParaGrupo } from '@/lib/grupo';
+
 import { MEDIA_BUCKET, type ServiceConfig } from './config';
 import type { Credentials } from './links';
 import type { OutgoingRecord, RemoteRecord } from './records';
@@ -28,7 +30,12 @@ export interface SyncResponse {
 function errorKind(status: number, body: unknown): SyncErrorKind {
   const text = typeof body === 'object' && body ? JSON.stringify(body) : String(body ?? '');
   if (text.includes('chave_nao_confere') || text.includes('28000')) return 'chave';
-  if (text.includes('mudancas_invalidas') || text.includes('registro_grande_demais') || text.includes('limite_de_registros'))
+  if (
+    text.includes('mudancas_invalidas') ||
+    text.includes('visitas_invalidas') ||
+    text.includes('registro_grande_demais') ||
+    text.includes('limite_de_registros')
+  )
     return 'dados';
   if (status === 401 || status === 403) return 'chave';
   return 'servidor';
@@ -100,6 +107,25 @@ export class SyncApi {
 
   async apagarConta(c: Credentials): Promise<void> {
     await this.rpc('caderno_apagar_conta', { p_conta: c.conta, p_chave: c.chave });
+  }
+
+  // ---------- Grupo (visitas reunidas para a coordenação) ----------
+  // Código que não existe (ou grupo apagado) volta como erro do tipo 'chave'.
+
+  /** Confere o código do grupo e devolve o nome dele. */
+  async grupoConferir(codigo: string): Promise<string> {
+    const r = (await this.rpc('caderno_grupo_conferir', { p_codigo: codigo })) as { nome?: unknown } | null;
+    if (!r || typeof r.nome !== 'string') throw new SyncError('servidor', 'resposta inesperada');
+    return r.nome;
+  }
+
+  /** Envia até 50 visitas para o grupo. Devolve quantas o servidor recebeu. */
+  async grupoEnviar(codigo: string, visitas: VisitaParaGrupo[]): Promise<number> {
+    const r = (await this.rpc('caderno_grupo_enviar', { p_codigo: codigo, p_visitas: visitas })) as {
+      recebidas?: unknown;
+    } | null;
+    if (!r || typeof r.recebidas !== 'number') throw new SyncError('servidor', 'resposta inesperada');
+    return r.recebidas;
   }
 
   // ---------- Arquivos (fotos e recados) ----------

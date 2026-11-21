@@ -107,7 +107,8 @@ export function toOutgoing(change: Change, st: SyncedState): OutgoingRecord | nu
   }
 }
 
-function visitaDados(v: Visita): Record<string, unknown> {
+/** Dados de uma visita como vão para o servidor (sem os campos de controle). */
+export function visitaDados(v: Visita): Record<string, unknown> {
   return without(v, ['id', 'updatedAt', 'deletedAt']);
 }
 
