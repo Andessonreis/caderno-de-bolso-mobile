@@ -14,10 +14,15 @@ export class SyncError extends Error {
     readonly kind: SyncErrorKind,
     message: string,
     readonly status?: number,
+    /** O `message` que o servidor mandou (ex.: "limite_de_registros"), quando veio. */
+    readonly serverMessage?: string,
   ) {
     super(message);
   }
 }
+
+/** Tempo máximo de uma chamada ao servidor. Passou disso, conta como sem internet. */
+export const REQUEST_TIMEOUT_MS = 30_000;
 
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
@@ -41,6 +46,27 @@ function errorKind(status: number, body: unknown): SyncErrorKind {
   return 'servidor';
 }
 
+function serverMessageOf(body: unknown): string | undefined {
+  if (typeof body !== 'object' || !body) return undefined;
+  const m = (body as { message?: unknown }).message;
+  return typeof m === 'string' ? m : undefined;
+}
+
+function httpError(res: Response, body: unknown): SyncError {
+  return new SyncError(errorKind(res.status, body), `HTTP ${res.status}`, res.status, serverMessageOf(body));
+}
+
+/**
+ * Erro do grupo: só "grupo_nao_encontrado" quer dizer código que não vale. Outro
+ * 401/403 (ex.: chave do app recusada) é falha do serviço, não do código.
+ */
+function groupError(e: unknown): unknown {
+  if (e instanceof SyncError && e.kind === 'chave' && e.serverMessage !== 'grupo_nao_encontrado') {
+    return new SyncError('servidor', e.message, e.status, e.serverMessage);
+  }
+  return e;
+}
+
 async function readBody(res: Response): Promise<unknown> {
   const text = await res.text();
   if (!text) return null;
@@ -55,6 +81,7 @@ export class SyncApi {
   constructor(
     private readonly config: ServiceConfig,
     private readonly fetchFn: FetchLike = (input, init) => fetch(input, init),
+    private readonly timeoutMs = REQUEST_TIMEOUT_MS,
   ) {}
 
   /** Cabeçalhos de toda chamada. */
@@ -62,15 +89,36 @@ export class SyncApi {
     return { apikey: this.config.key, Authorization: `Bearer ${this.config.key}`, ...extra };
   }
 
+  /**
+   * Uma chamada com prazo: passou de `timeoutMs`, a chamada é cancelada e vira
+   * erro de rede. A corrida garante a resposta mesmo se o `fetch` ignorar o cancelamento.
+   */
   private async call(path: string, init: RequestInit): Promise<unknown> {
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        controller.abort();
+        reject(new SyncError('rede', 'sem resposta do servidor'));
+      }, this.timeoutMs);
+    });
+    try {
+      return await Promise.race([this.request(path, { ...init, signal: controller.signal }), timeout]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  private async request(path: string, init: RequestInit): Promise<unknown> {
     let res: Response;
+    let body: unknown;
     try {
       res = await this.fetchFn(`${this.config.url}${path}`, init);
+      body = await readBody(res);
     } catch {
       throw new SyncError('rede', 'sem conexão');
     }
-    const body = await readBody(res);
-    if (!res.ok) throw new SyncError(errorKind(res.status, body), `HTTP ${res.status}`, res.status);
+    if (!res.ok) throw httpError(res, body);
     return body;
   }
 
@@ -114,14 +162,22 @@ export class SyncApi {
 
   /** Confere o código do grupo e devolve o nome dele. */
   async grupoConferir(codigo: string): Promise<string> {
-    const r = (await this.rpc('caderno_grupo_conferir', { p_codigo: codigo })) as { nome?: unknown } | null;
+    const r = (await this.rpc('caderno_grupo_conferir', { p_codigo: codigo }).catch((e: unknown) => {
+      throw groupError(e);
+    })) as { nome?: unknown } | null;
     if (!r || typeof r.nome !== 'string') throw new SyncError('servidor', 'resposta inesperada');
     return r.nome;
   }
 
-  /** Envia até 50 visitas para o grupo. Devolve quantas o servidor recebeu. */
+  /**
+   * Envia até 50 visitas para o grupo. Devolve quantas o servidor recebeu. Lote
+   * recusado volta como erro do tipo 'dados', com o motivo em `serverMessage`
+   * ("visitas_invalidas", "registro_grande_demais" ou "limite_de_registros").
+   */
   async grupoEnviar(codigo: string, visitas: VisitaParaGrupo[]): Promise<number> {
-    const r = (await this.rpc('caderno_grupo_enviar', { p_codigo: codigo, p_visitas: visitas })) as {
+    const r = (await this.rpc('caderno_grupo_enviar', { p_codigo: codigo, p_visitas: visitas }).catch((e: unknown) => {
+      throw groupError(e);
+    })) as {
       recebidas?: unknown;
     } | null;
     if (!r || typeof r.recebidas !== 'number') throw new SyncError('servidor', 'resposta inesperada');
@@ -161,7 +217,7 @@ export class SyncApi {
     } catch {
       throw new SyncError('rede', 'sem conexão');
     }
-    if (!res.ok) throw new SyncError(errorKind(res.status, await readBody(res)), `HTTP ${res.status}`, res.status);
+    if (!res.ok) throw httpError(res, await readBody(res));
     return new Uint8Array(await res.arrayBuffer());
   }
 
