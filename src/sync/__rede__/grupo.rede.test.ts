@@ -1,9 +1,11 @@
 import { randomBytes } from 'node:crypto';
 
 import { ALFABETO_GRUPO, TAMANHO_CODIGO, formatarCodigo } from '@/lib/grupo';
+import { type Visita, novaVisita } from '@/lib/roteiro';
 
 import { SyncApi } from '../api';
 import { serviceConfig } from '../config';
+import { type GroupState, runGroupSend } from '../grupo';
 import { keyFromBytes } from '../links';
 
 const config = serviceConfig();
@@ -62,6 +64,51 @@ describe('grupo das visitas (rede real)', () => {
       visitas: { id: string }[];
     };
     expect(semApagada.visitas.map((v) => v.id)).toEqual(['visita-de-teste-1']);
+
+    // Visita estragada ou grande demais volta com o motivo do servidor.
+    await expect(api.grupoEnviar(codigo, [{ ...visita, id: 'x'.repeat(65) }])).rejects.toMatchObject({
+      kind: 'dados',
+      serverMessage: 'visitas_invalidas',
+    });
+    const enorme = { ...visita, id: 'visita-enorme', dados: { observacoes: randomBytes(30_000).toString('hex') } };
+    await expect(api.grupoEnviar(codigo, [enorme])).rejects.toMatchObject({
+      kind: 'dados',
+      serverMessage: 'registro_grande_demais',
+    });
+
+    // O lote com uma visita recusada é separado: a boa vai, a recusada fica marcada.
+    const nova = (id: string): Visita => {
+      const v = novaVisita(new Date(), id);
+      return { ...v, produtor: { ...v.produtor, nome: 'Rosa' } };
+    };
+    const boa = nova('visita-de-teste-3');
+    const ruim = nova('x'.repeat(65));
+    const estado: GroupState = {
+      profile: { name: 'Teste' },
+      grupo: { codigo, nome: 'Grupo de teste', ligadoEm: agora },
+      peerVisits: [boa, ruim],
+      grupoEnviadas: {},
+      grupoRecusadas: {},
+    };
+    const out = await runGroupSend({
+      api,
+      store: {
+        get: () => estado,
+        markSent: (_c, sent) => {
+          for (const r of sent) estado.grupoEnviadas = { ...estado.grupoEnviadas, [r.id]: r.atualizado_em };
+        },
+        markRejected: (_c, rejected) => {
+          for (const r of rejected) estado.grupoRecusadas = { ...estado.grupoRecusadas, [r.id]: r.atualizado_em };
+        },
+      },
+    });
+    expect(out).toEqual({ sent: 1, tooBig: 0, rejected: 1, full: false });
+    expect(Object.keys(estado.grupoRecusadas)).toEqual([ruim.id]);
+    const depoisDoLote = (await rpc('caderno_grupo_listar', { p_grupo: grupo, p_chave: chave })) as {
+      visitas: { id: string }[];
+    };
+    expect(depoisDoLote.visitas.map((v) => v.id).sort()).toEqual(['visita-de-teste-1', 'visita-de-teste-3']);
+    console.log('lote com visita recusada separado: a boa chegou ao grupo');
 
     await rpc('caderno_grupo_apagar', { p_grupo: grupo, p_chave: chave });
     grupo = null;
