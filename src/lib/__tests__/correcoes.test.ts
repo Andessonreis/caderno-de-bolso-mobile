@@ -121,14 +121,16 @@ describe('fotos com caminho relativo', () => {
   });
 
   it('não mexe em dados já na versão atual', () => {
-    const v6 = {
+    const v7 = {
       entries: [{ id: '1', photo: 'anotacoes/1.jpg' }],
       photos: [],
       peerVisits: [],
       grupo: { codigo: 'ABCDE23456', nome: 'Núcleo', ligadoEm: '2026-11-01T00:00:00.000Z' },
       grupoEnviadas: { v1: '2026-11-01T00:00:00.000Z' },
+      grupoEnviadasDe: 'ABCDE23456',
+      grupoRecusadas: {},
     };
-    expect(migratePersisted(v6, 6)).toEqual(v6);
+    expect(migratePersisted(v7, 7)).toEqual(v7);
   });
 });
 

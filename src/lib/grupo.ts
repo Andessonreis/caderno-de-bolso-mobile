@@ -27,6 +27,12 @@ export interface Grupo {
 /** Visita já aceita pelo grupo: id → `updatedAt` da versão aceita. */
 export type EnviadasAoGrupo = Record<string, string>;
 
+/**
+ * Visita que o servidor do grupo recusou sozinha: id → `updatedAt` da versão
+ * recusada. Fica de fora até a visita mudar.
+ */
+export type RecusadasPeloGrupo = Record<string, string>;
+
 /** Uma visita como o servidor do grupo recebe. */
 export interface VisitaParaGrupo {
   id: string;
@@ -113,21 +119,32 @@ export type SituacaoNoGrupo =
   | 'sem_nome'
   /** Não cabe no limite do servidor: não vai até diminuir. */
   | 'grande_demais'
+  /** O servidor recusou esta versão: não vai até a visita mudar. */
+  | 'recusada'
   /** Apagada antes de ir: não há nada a avisar ao grupo. */
   | 'fora';
 
-export function situacaoNoGrupo(v: Visita, enviadas: EnviadasAoGrupo): SituacaoNoGrupo {
+export function situacaoNoGrupo(
+  v: Visita,
+  enviadas: EnviadasAoGrupo,
+  recusadas: RecusadasPeloGrupo = {},
+): SituacaoNoGrupo {
   const aceita = enviadas[v.id];
   if (aceita === v.updatedAt) return v.deletedAt ? 'fora' : 'enviada';
-  if (v.deletedAt) return aceita ? 'falta' : 'fora';
-  if (!aceita && semNome(v)) return 'sem_nome';
-  return grandeDemaisParaGrupo(paraGrupo(v)) ? 'grande_demais' : 'falta';
+  if (v.deletedAt && !aceita) return 'fora';
+  if (!v.deletedAt && !aceita && semNome(v)) return 'sem_nome';
+  if (!v.deletedAt && grandeDemaisParaGrupo(paraGrupo(v))) return 'grande_demais';
+  return recusadas[v.id] === v.updatedAt ? 'recusada' : 'falta';
 }
 
 export interface SelecaoParaGrupo {
   enviar: VisitaParaGrupo[];
+  /** Ids, dentre as de `enviar`, das visitas que o grupo nunca aceitou (contam no limite do grupo). */
+  novas: Set<string>;
   /** Ids das visitas que não cabem no limite do servidor. */
   grandes: string[];
+  /** Ids das visitas que o servidor recusou (até mudarem). */
+  recusadas: string[];
 }
 
 /**
@@ -135,18 +152,73 @@ export interface SelecaoParaGrupo {
  * desde a última vez que o grupo aceitou, e as exclusões de visitas que o grupo
  * já tinha. Visita grande demais fica de fora (e é apontada), sem travar o resto.
  */
-export function visitasParaEnviar(visitas: Visita[], enviadas: EnviadasAoGrupo): SelecaoParaGrupo {
-  const enviar: VisitaParaGrupo[] = [];
-  const grandes: string[] = [];
+export function visitasParaEnviar(
+  visitas: Visita[],
+  enviadas: EnviadasAoGrupo,
+  recusadas: RecusadasPeloGrupo = {},
+): SelecaoParaGrupo {
+  const sel: SelecaoParaGrupo = { enviar: [], novas: new Set(), grandes: [], recusadas: [] };
   for (const v of visitas) {
-    const s = situacaoNoGrupo(v, enviadas);
-    if (s === 'falta') enviar.push(paraGrupo(v));
-    else if (s === 'grande_demais') grandes.push(v.id);
+    const s = situacaoNoGrupo(v, enviadas, recusadas);
+    if (s === 'falta') {
+      sel.enviar.push(paraGrupo(v));
+      if (!enviadas[v.id]) sel.novas.add(v.id);
+    } else if (s === 'grande_demais') sel.grandes.push(v.id);
+    else if (s === 'recusada') sel.recusadas.push(v.id);
   }
-  return { enviar, grandes };
+  return sel;
 }
 
 /** Quantas visitas ainda faltam ir para o grupo. */
-export function faltamParaGrupo(visitas: Visita[], enviadas: EnviadasAoGrupo): number {
-  return visitasParaEnviar(visitas, enviadas).enviar.length;
+export function faltamParaGrupo(
+  visitas: Visita[],
+  enviadas: EnviadasAoGrupo,
+  recusadas: RecusadasPeloGrupo = {},
+): number {
+  return visitasParaEnviar(visitas, enviadas, recusadas).enviar.length;
+}
+
+export interface ResumoDoGrupo {
+  /** Visitas (e exclusões) que ainda vão para o grupo. */
+  faltam: number;
+  /** Visitas que ficaram de fora: grandes demais ou recusadas pelo servidor. */
+  naoForam: number;
+}
+
+export function resumoDoGrupo(
+  visitas: Visita[],
+  enviadas: EnviadasAoGrupo,
+  recusadas: RecusadasPeloGrupo = {},
+): ResumoDoGrupo {
+  const sel = visitasParaEnviar(visitas, enviadas, recusadas);
+  return { faltam: sel.enviar.length, naoForam: sel.grandes.length + sel.recusadas.length };
+}
+
+/**
+ * Quantas visitas que já estão no celular vão para o grupo `codigo` logo ao
+ * entrar nele (para o produtor saber antes de aceitar). Exclusões não contam.
+ */
+export function visitasQueVaoAoEntrar(
+  visitas: Visita[],
+  codigo: string,
+  aceitas: { de: string | null; enviadas: EnviadasAoGrupo },
+): number {
+  const enviadas = aceitas.de === codigo ? aceitas.enviadas : {};
+  return visitasParaEnviar(visitas, enviadas).enviar.filter((r) => r.apagado_em === null).length;
+}
+
+/** Texto da confirmação antes de entrar no grupo. */
+export function avisoAoEntrar(i: { nome: string; existentes: number; atual: Grupo | null; codigo: string }): string {
+  const quem = 'Quem coordena o grupo vai ver o que foi preenchido, inclusive o nome do produtor visitado.';
+  const vao =
+    i.existentes === 0
+      ? `As visitas que você fizer serão enviadas para a coordenação de ${i.nome}.`
+      : i.existentes === 1
+        ? `A visita que já está neste celular e as que você fizer daqui para a frente vão para a coordenação de ${i.nome}.`
+        : `As ${i.existentes} visitas que já estão neste celular e as que você fizer daqui para a frente vão para a coordenação de ${i.nome}.`;
+  const troca =
+    i.atual && i.atual.codigo !== i.codigo
+      ? ` As visitas deixam de ir para ${i.atual.nome} e passam a ir para ${i.nome}.`
+      : '';
+  return `${vao} ${quem}${troca}`;
 }

@@ -123,7 +123,8 @@ export function useSyncTriggers(): void {
         requestGroupSend();
       }
       if (!online && useSyncStatus.getState().fase !== 'chave') useSyncStatus.setState({ fase: 'sem_internet' });
-      if (!online && useGroupStatus.getState().fase !== 'nao_encontrado') useGroupStatus.setState({ fase: 'sem_internet' });
+      const faseGrupo = useGroupStatus.getState().fase;
+      if (!online && faseGrupo !== 'nao_encontrado' && faseGrupo !== 'cheio') useGroupStatus.setState({ fase: 'sem_internet' });
     };
     Network.getNetworkStateAsync().then(setOnline, () => undefined);
     const net = Network.addNetworkStateListener(setOnline);
@@ -200,8 +201,12 @@ export async function deleteCloudCopy(): Promise<'ok' | 'sem_internet' | 'erro'>
 
 // ---------- Envio das visitas para o grupo ----------
 
-/** `nao_encontrado`: o código não vale mais (grupo apagado ou código errado). O envio para até entrar de novo. */
-export type GroupPhase = 'parado' | 'enviando' | 'sem_internet' | 'erro' | 'nao_encontrado';
+/**
+ * `nao_encontrado`: o código não vale mais (grupo apagado ou código errado). O envio para até entrar de novo.
+ * `cheio`: o grupo chegou ao limite. Visita nova só vai quando o produtor tocar em "Tentar de novo"
+ * (ou o app abrir de novo); correções e exclusões de visitas que o grupo já tem continuam indo.
+ */
+export type GroupPhase = 'parado' | 'enviando' | 'sem_internet' | 'erro' | 'nao_encontrado' | 'cheio';
 
 export const useGroupStatus = create<{ fase: GroupPhase }>(() => ({ fase: 'parado' }));
 
@@ -210,6 +215,7 @@ const groupDeps: GroupDeps = {
   store: {
     get: () => useApp.getState(),
     markSent: (codigo, sent) => useApp.getState().markSentToGroup(codigo, sent),
+    markRejected: (codigo, rejected) => useApp.getState().markRejectedByGroup(codigo, rejected),
   },
 };
 
@@ -217,6 +223,8 @@ let groupCurrent: Promise<GroupOutcome | null> = Promise.resolve(null);
 let groupRunning = false;
 let groupFailures = 0;
 let groupTimer: ReturnType<typeof setTimeout> | null = null;
+/** O grupo avisou que está cheio: as rodadas automáticas levam só correções e exclusões. */
+let groupFull = false;
 
 function canRunGroup(): boolean {
   const st = useApp.getState();
@@ -228,9 +236,10 @@ async function executeGroup(): Promise<GroupOutcome | null> {
   groupRunning = true;
   useGroupStatus.setState({ fase: 'enviando' });
   try {
-    const out = await runGroupSend(groupDeps);
+    const out = await runGroupSend(groupDeps, { full: groupFull });
     groupFailures = 0;
-    useGroupStatus.setState({ fase: 'parado' });
+    groupFull = out.full;
+    useGroupStatus.setState({ fase: groupFull ? 'cheio' : 'parado' });
     return out;
   } catch (e) {
     const kind = e instanceof SyncError ? e.kind : 'servidor';
@@ -277,6 +286,16 @@ export async function sendToGroupNow(): Promise<GroupOutcome | null> {
   return groupCurrent;
 }
 
+/** "Tentar de novo" com o grupo cheio: tenta também as visitas novas. */
+export async function retryGroupSend(): Promise<GroupOutcome | null> {
+  // Um envio que já estava no caminho termina antes, para não marcar "cheio" de novo por cima.
+  await groupCurrent.catch(() => null);
+  groupFull = false;
+  groupFailures = 0;
+  useGroupStatus.setState({ fase: 'parado' });
+  return sendToGroupNow();
+}
+
 export type GroupCheck = { ok: true; nome: string } | { ok: false; motivo: 'nao_encontrado' | 'sem_internet' | 'erro' };
 
 /** Confere o código no servidor (precisa de internet) e devolve o nome do grupo. */
@@ -294,6 +313,7 @@ export async function checkGroup(codigo: string): Promise<GroupCheck> {
 export function enterGroup(codigo: string, nome: string): void {
   useApp.getState().joinGroup(codigo, nome);
   groupFailures = 0;
+  groupFull = false;
   useGroupStatus.setState({ fase: 'parado' });
   requestGroupSend();
 }
@@ -304,5 +324,6 @@ export function leaveGroup(): void {
   if (groupTimer) clearTimeout(groupTimer);
   groupTimer = null;
   groupFailures = 0;
+  groupFull = false;
   useGroupStatus.setState({ fase: 'parado' });
 }

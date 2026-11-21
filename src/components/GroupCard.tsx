@@ -1,13 +1,21 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { hapticSuccess } from '@/lib/device';
-import { codigoDoTexto, faltamParaGrupo, formatarCodigo, type SituacaoNoGrupo, situacaoNoGrupo } from '@/lib/grupo';
+import {
+  avisoAoEntrar,
+  codigoDoTexto,
+  formatarCodigo,
+  resumoDoGrupo,
+  type SituacaoNoGrupo,
+  situacaoNoGrupo,
+  visitasQueVaoAoEntrar,
+} from '@/lib/grupo';
 import type { Visita } from '@/lib/roteiro';
 import { SYNC_AVAILABLE } from '@/sync/device';
 import { groupLabel } from '@/sync/label';
-import { checkGroup, enterGroup, leaveGroup, useGroupStatus, useSyncStatus } from '@/sync/service';
+import { checkGroup, enterGroup, leaveGroup, retryGroupSend, useGroupStatus, useSyncStatus } from '@/sync/service';
 import { useApp } from '@/store';
 import { colors, radius, space } from '@/theme';
 
@@ -40,27 +48,48 @@ export function GroupJoinForm({
   const [texto, setTexto] = useState(() => formatarCodigo(inicial));
   const [busy, setBusy] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
-  const [achado, setAchado] = useState<{ codigo: string; nome: string } | null>(null);
+  const [achado, setAchado] = useState<{ codigo: string; nome: string; aviso: string } | null>(null);
+  // Segundo toque (ou o "enter" do teclado) enquanto confere não confere de novo.
+  const conferindo = useRef(false);
 
   const mudar = (t: string) => {
-    // Link colado inteiro (cadernodebolso://grupo?c=...): fica só o código.
-    const doLink = t.includes('?') ? codigoDoTexto(t) : null;
-    setTexto(formatarCodigo(doLink ?? t));
+    // Link colado inteiro (cadernodebolso://grupo?c=...): fica só o código. Outro
+    // link fica como foi colado e mostra o erro, em vez de virar um código qualquer.
+    if (t.includes('?') || t.includes('://')) {
+      const doLink = codigoDoTexto(t);
+      setTexto(doLink ? formatarCodigo(doLink) : t);
+      setErro(doLink ? null : MENSAGEM.formato);
+      return;
+    }
+    setTexto(formatarCodigo(t));
     setErro(null);
   };
 
   const conferir = async () => {
+    if (conferindo.current) return;
     const codigo = codigoDoTexto(texto);
     if (!codigo) {
       setErro(MENSAGEM.formato);
       return;
     }
+    conferindo.current = true;
     setErro(null);
     setBusy(true);
-    const r = await checkGroup(codigo);
-    setBusy(false);
-    if (r.ok) setAchado({ codigo, nome: r.nome });
-    else setErro(MENSAGEM[r.motivo]);
+    try {
+      const r = await checkGroup(codigo);
+      if (!r.ok) {
+        setErro(MENSAGEM[r.motivo]);
+        return;
+      }
+      const st = useApp.getState();
+      const existentes = st.profile?.exemplo
+        ? 0
+        : visitasQueVaoAoEntrar(st.peerVisits, codigo, { de: st.grupoEnviadasDe, enviadas: st.grupoEnviadas });
+      setAchado({ codigo, nome: r.nome, aviso: avisoAoEntrar({ nome: r.nome, existentes, atual: st.grupo, codigo }) });
+    } finally {
+      conferindo.current = false;
+      setBusy(false);
+    }
   };
 
   const confirmar = () => {
@@ -94,11 +123,7 @@ export function GroupJoinForm({
       <ConfirmDialog
         visible={achado !== null}
         title={achado ? `Grupo: ${achado.nome}` : ''}
-        message={
-          achado
-            ? `As visitas que você fizer serão enviadas para a coordenação de ${achado.nome}. Quem coordena o grupo vai ver o que foi preenchido, inclusive o nome do produtor visitado.`
-            : ''
-        }
+        message={achado?.aviso ?? ''}
         confirmLabel="Sim"
         cancelLabel="Não"
         onConfirm={confirmar}
@@ -112,7 +137,11 @@ export function GroupJoinForm({
 export function GroupCard() {
   const grupo = useApp((s) => s.grupo);
   const exemplo = useApp((s) => Boolean(s.profile?.exemplo));
-  const faltam = useApp((s) => faltamParaGrupo(s.peerVisits, s.grupoEnviadas));
+  const visitas = useApp((s) => s.peerVisits);
+  const enviadas = useApp((s) => s.grupoEnviadas);
+  const recusadas = useApp((s) => s.grupoRecusadas);
+  // Só recalcula quando as visitas ou o que o grupo aceitou mudam (a conta mede cada visita).
+  const resumo = useMemo(() => resumoDoGrupo(visitas, enviadas, recusadas), [visitas, enviadas, recusadas]);
   const fase = useGroupStatus((s) => s.fase);
   const online = useSyncStatus((s) => s.online);
   const [askLeave, setAskLeave] = useState(false);
@@ -144,7 +173,7 @@ export function GroupCard() {
     );
   }
 
-  const label = groupLabel({ fase, online, faltam, exemplo });
+  const label = groupLabel({ fase, online, ...resumo, exemplo });
   const tom = TONS[label.tone];
 
   return (
@@ -174,6 +203,22 @@ export function GroupCard() {
           As visitas com o nome do produtor vão para a coordenação do grupo sempre que houver internet.
         </AppText>
       )}
+      {fase === 'cheio' ? (
+        <>
+          <AppText variant="body">
+            {grupo.nome} não recebe mais visitas novas. As correções das visitas que já foram continuam indo. As visitas
+            continuam guardadas neste celular.
+          </AppText>
+          <Button label="Tentar de novo" icon="refresh" variant="secondary" onPress={() => void retryGroupSend()} />
+        </>
+      ) : null}
+      {resumo.naoForam > 0 && fase !== 'nao_encontrado' && !exemplo ? (
+        <AppText variant="small" color={colors.inkMuted}>
+          {resumo.naoForam === 1
+            ? 'A visita que não pôde ir está marcada na lista. Ela continua guardada neste celular e tenta ir de novo quando for mudada.'
+            : 'As visitas que não puderam ir estão marcadas na lista. Elas continuam guardadas neste celular e tentam ir de novo quando forem mudadas.'}
+        </AppText>
+      ) : null}
       <Button label="Sair do grupo" icon="logout" variant="quiet" onPress={() => setAskLeave(true)} />
       <ConfirmDialog
         visible={askLeave}
@@ -200,7 +245,12 @@ const SITUACAO: Record<Exclude<SituacaoNoGrupo, 'fora'>, { text: string; icon: I
     color: colors.inkMuted,
   },
   grande_demais: {
-    text: 'Esta visita ficou grande demais para enviar ao grupo. Ela continua guardada neste celular.',
+    text: 'Esta visita não pôde ir para o grupo: ficou grande demais. Ela continua guardada neste celular.',
+    icon: 'cloud-off-outline',
+    color: colors.clay,
+  },
+  recusada: {
+    text: 'Esta visita não pôde ir para o grupo. Ela continua guardada neste celular.',
     icon: 'cloud-off-outline',
     color: colors.clay,
   },
@@ -210,8 +260,13 @@ const SITUACAO: Record<Exclude<SituacaoNoGrupo, 'fora'>, { text: string; icon: I
 export function VisitGroupStatus({ visita }: { visita: Visita }) {
   const temGrupo = useApp((s) => s.grupo !== null && !s.profile?.exemplo);
   const aceita = useApp((s) => s.grupoEnviadas[visita.id]);
+  const recusada = useApp((s) => s.grupoRecusadas[visita.id]);
   if (!temGrupo || !SYNC_AVAILABLE) return null;
-  const s = situacaoNoGrupo(visita, aceita ? { [visita.id]: aceita } : {});
+  const s = situacaoNoGrupo(
+    visita,
+    aceita ? { [visita.id]: aceita } : {},
+    recusada ? { [visita.id]: recusada } : {},
+  );
   if (s === 'fora') return null;
   const info = SITUACAO[s];
   return (

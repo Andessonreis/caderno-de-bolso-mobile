@@ -1,4 +1,5 @@
 import { Image } from 'expo-image';
+import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Modal, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -20,6 +21,7 @@ import {
   mediaUri,
   takePhoto,
 } from '@/lib/device';
+import { type Grupo, formatarCodigo } from '@/lib/grupo';
 import type { NotebookPhoto } from '@/lib/types';
 import { exportSnapshot, newId, useApp, usePhotos } from '@/store';
 import { colors, radius, space } from '@/theme';
@@ -97,6 +99,8 @@ export default function CopiaSeguranca() {
   const [busy, setBusy] = useState<'camera' | 'galeria' | 'export' | 'import' | null>(null);
   const [viewing, setViewing] = useState<NotebookPhoto | null>(null);
   const [confirmImport, setConfirmImport] = useState(false);
+  // Arquivo de outro grupo: o celular continua no seu, e a tela oferece entrar no do arquivo.
+  const [ofertaGrupo, setOfertaGrupo] = useState<{ grupo: Grupo; atual: string | null; resumo: string } | null>(null);
   const today = todayISO();
   const last = lastBackupDate(photos, lastExportAt);
 
@@ -150,7 +154,14 @@ export default function CopiaSeguranca() {
       const lost = result.droppedMedia
         ? ` ${result.droppedMedia === 1 ? '1 foto ou recado não veio' : `${result.droppedMedia} fotos ou recados não vieram`} no arquivo e ficou de fora.`
         : '';
-      Alert.alert('Importar', `Pronto! ${result.data.entries.length} anotações foram trazidas do arquivo.${lost}`);
+      const resumo = `Pronto! ${result.data.entries.length} anotações foram trazidas do arquivo.${lost}`;
+      const atual = useApp.getState().grupo;
+      const doArquivo = result.data.grupo;
+      if (doArquivo && doArquivo.codigo !== atual?.codigo) {
+        setOfertaGrupo({ grupo: doArquivo, atual: atual?.nome ?? null, resumo });
+      } else {
+        Alert.alert('Importar', resumo);
+      }
     } catch (e) {
       Alert.alert('Importar', errorMessage(e));
     } finally {
@@ -257,10 +268,27 @@ export default function CopiaSeguranca() {
       <ConfirmDialog
         visible={confirmImport}
         title="Trocar os dados pelo arquivo?"
-        message="Os dados, anotações, fotos e recados que estão no app agora serão trocados pelos do arquivo. Se quiser, exporte antes."
+        message="Os dados, anotações, fotos e recados que estão no app agora serão trocados pelos do arquivo. O grupo para onde vão as visitas não muda. Se quiser, exporte antes."
         confirmLabel="Sim, escolher arquivo"
         onConfirm={doImport}
         onCancel={() => setConfirmImport(false)}
+      />
+      <ConfirmDialog
+        visible={ofertaGrupo !== null}
+        title={ofertaGrupo ? `Entrar em ${ofertaGrupo.grupo.nome}?` : ''}
+        message={
+          ofertaGrupo
+            ? `${ofertaGrupo.resumo}\n\nO arquivo é de um celular que enviava as visitas para ${ofertaGrupo.grupo.nome}. Este celular continua ${ofertaGrupo.atual ? `enviando as visitas para ${ofertaGrupo.atual}` : 'sem grupo'}. Para enviar para ${ofertaGrupo.grupo.nome}, confira o código e confirme na tela do grupo.`
+            : ''
+        }
+        confirmLabel="Sim, ver o grupo"
+        cancelLabel="Não, deixar como está"
+        onConfirm={() => {
+          if (!ofertaGrupo) return;
+          setOfertaGrupo(null);
+          router.push({ pathname: '/grupo', params: { c: formatarCodigo(ofertaGrupo.grupo.codigo) } });
+        }}
+        onCancel={() => setOfertaGrupo(null)}
       />
       {viewing ? <PhotoViewer key={viewing.id} photo={viewing} onClose={() => setViewing(null)} /> : null}
     </Screen>

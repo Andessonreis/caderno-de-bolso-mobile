@@ -31,8 +31,9 @@ export interface BackupData {
   /** Ausente em arquivos feitos antes do roteiro de visita: aí as visitas do aparelho ficam como estão. */
   peerVisits?: Visita[];
   /**
-   * Grupo que recebe as visitas (é um ajuste do produtor, como o tamanho da letra).
-   * null = sem grupo. Ausente em arquivos feitos antes do grupo: aí fica o do aparelho.
+   * Grupo para o qual o celular que exportou enviava as visitas. null = sem grupo.
+   * Ausente em arquivos feitos antes do grupo. Importar nunca muda o grupo do
+   * aparelho: se o arquivo for de outro grupo, a tela oferece entrar nele.
    */
   grupo?: Grupo | null;
 }

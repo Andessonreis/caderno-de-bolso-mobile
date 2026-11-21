@@ -17,7 +17,7 @@ import {
   upsert,
 } from '@/data/repository';
 import { BACKUP_VERSION, type BackupData } from '@/lib/backup';
-import type { EnviadasAoGrupo, Grupo, VisitaParaGrupo } from '@/lib/grupo';
+import type { EnviadasAoGrupo, Grupo, RecusadasPeloGrupo, VisitaParaGrupo } from '@/lib/grupo';
 import { uuid } from '@/lib/ids';
 import { initialChanges, migratePersisted, STORAGE_VERSION } from '@/lib/migrate';
 import type { Visita } from '@/lib/roteiro';
@@ -64,8 +64,16 @@ export interface AppData {
   sync: SyncConfig;
   /** Grupo que recebe as visitas a outras roças. null = não envia para grupo nenhum. */
   grupo: Grupo | null;
-  /** Visitas que o grupo já aceitou: id → `updatedAt` da versão aceita. */
+  /**
+   * Visitas que o grupo `grupoEnviadasDe` já aceitou: id → `updatedAt` da versão
+   * aceita. Fica guardado ao sair do grupo, para que voltar ao mesmo grupo leve as
+   * alterações e exclusões feitas fora dele.
+   */
   grupoEnviadas: EnviadasAoGrupo;
+  /** Código do grupo a que `grupoEnviadas` se refere. null = nenhum. */
+  grupoEnviadasDe: string | null;
+  /** Visitas que o servidor do grupo recusou: ficam de fora até mudarem. */
+  grupoRecusadas: RecusadasPeloGrupo;
 }
 
 export interface SyncConfig {
@@ -111,7 +119,10 @@ interface AppActions {
   resetManualChecks: () => void;
   setFontSize: (size: FontSizeChoice) => void;
   markExported: (date: ISODate) => void;
-  /** Troca os dados pelos do arquivo. `keepPhotos`: mantém as fotos do caderno atuais (arquivo antigo, sem fotos). */
+  /**
+   * Troca os dados pelos do arquivo; o grupo do aparelho fica como está.
+   * `keepPhotos`: mantém as fotos do caderno atuais (arquivo antigo, sem fotos).
+   */
   importData: (data: BackupData, keepPhotos?: boolean) => void;
   /** Liga ou desliga a cópia na internet. */
   setSyncEnabled: (ligado: boolean) => void;
@@ -125,6 +136,8 @@ interface AppActions {
   leaveGroup: () => void;
   /** Registra as visitas que o grupo aceitou (só se o grupo ainda for o mesmo). */
   markSentToGroup: (codigo: string, sent: VisitaParaGrupo[]) => void;
+  /** Registra as visitas que o grupo recusou (só se o grupo ainda for o mesmo). */
+  markRejectedByGroup: (codigo: string, rejected: VisitaParaGrupo[]) => void;
   resetAll: () => void;
 }
 
@@ -148,6 +161,8 @@ const initialData: AppData = {
   sync: { ligado: false, perguntado: false, cursor: 0, enviados: {} },
   grupo: null,
   grupoEnviadas: {},
+  grupoEnviadasDe: null,
+  grupoRecusadas: {},
 };
 
 /**
@@ -377,22 +392,17 @@ export const useApp = create<AppState>()(
           manualChecks: data.manualChecks,
           lastVisitDate: data.lastVisitDate,
         };
-        set((st) => {
-          // Arquivo feito antes do grupo (sem o campo): fica o grupo do aparelho.
-          const grupo = data.grupo === undefined ? st.grupo : data.grupo;
-          return {
-            ...imported,
-            grupo,
-            // Outro grupo: o que o anterior já recebeu não vale para este.
-            grupoEnviadas: grupo?.codigo === st.grupo?.codigo ? st.grupoEnviadas : {},
-            lastAreaId: undefined,
-            culturasUpdatedAt: now,
-            visitaUpdatedAt: now,
-            pendingChanges: initialChanges(imported, deps),
-            // Os arquivos importados ainda não estão na cópia na internet.
-            sync: { ...st.sync, enviados: {} },
-          };
-        });
+        // O grupo do aparelho não muda: entrar em outro grupo (ou sair) é sempre
+        // escolha do produtor, com a confirmação da tela do grupo.
+        set((st) => ({
+          ...imported,
+          lastAreaId: undefined,
+          culturasUpdatedAt: now,
+          visitaUpdatedAt: now,
+          pendingChanges: initialChanges(imported, deps),
+          // Os arquivos importados ainda não estão na cópia na internet.
+          sync: { ...st.sync, enviados: {} },
+        }));
       },
 
       setSyncEnabled: (ligado) => set((st) => ({ sync: { ...st.sync, ligado, perguntado: true } })),
@@ -406,19 +416,34 @@ export const useApp = create<AppState>()(
         })),
 
       joinGroup: (codigo, nome) =>
-        set((st) => ({
-          grupo: { codigo, nome, ligadoEm: nowISO() },
-          // Mesmo grupo (ex.: código digitado de novo): o que ele já aceitou continua valendo.
-          grupoEnviadas: st.grupo?.codigo === codigo ? st.grupoEnviadas : {},
-        })),
+        set((st) => {
+          // Mesmo grupo (código digitado de novo, ou voltou depois de sair): o que ele
+          // já aceitou continua valendo, e as exclusões feitas fora dele vão agora.
+          const mesmo = st.grupoEnviadasDe === codigo;
+          return {
+            grupo: { codigo, nome, ligadoEm: nowISO() },
+            grupoEnviadas: mesmo ? st.grupoEnviadas : {},
+            grupoEnviadasDe: codigo,
+            grupoRecusadas: mesmo ? st.grupoRecusadas : {},
+          };
+        }),
 
-      leaveGroup: () => set({ grupo: null, grupoEnviadas: {} }),
+      // `grupoEnviadas` fica: voltar ao mesmo grupo não reenvia tudo e leva as exclusões.
+      leaveGroup: () => set({ grupo: null, grupoRecusadas: {} }),
 
       markSentToGroup: (codigo, sent) =>
         set((st) => {
           // Saiu do grupo (ou trocou) enquanto o envio estava no caminho: não registra.
           if (st.grupo?.codigo !== codigo) return st;
-          return { grupoEnviadas: markAccepted(st.grupoEnviadas, sent) };
+          const grupoRecusadas = { ...st.grupoRecusadas };
+          for (const r of sent) delete grupoRecusadas[r.id];
+          return { grupoEnviadas: markAccepted(st.grupoEnviadas, sent), grupoEnviadasDe: codigo, grupoRecusadas };
+        }),
+
+      markRejectedByGroup: (codigo, rejected) =>
+        set((st) => {
+          if (st.grupo?.codigo !== codigo) return st;
+          return { grupoRecusadas: markAccepted(st.grupoRecusadas, rejected) };
         }),
 
       resetAll: () => set({ ...initialData }),
@@ -447,6 +472,8 @@ export const useApp = create<AppState>()(
         sync: st.sync,
         grupo: st.grupo,
         grupoEnviadas: st.grupoEnviadas,
+        grupoEnviadasDe: st.grupoEnviadasDe,
+        grupoRecusadas: st.grupoRecusadas,
       }),
       onRehydrateStorage: () => () => {
         useApp.setState({ hydrated: true });

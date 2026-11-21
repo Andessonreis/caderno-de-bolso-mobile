@@ -17,17 +17,19 @@ import { colors, space } from '@/theme';
  * câmera ou pelo link cadernodebolso://grupo?c=XXXXX-XXXXX.
  */
 export default function Grupo() {
-  const params = useLocalSearchParams<{ c?: string }>();
+  const params = useLocalSearchParams<{ c?: string | string[] }>();
+  // Link com `c=` repetido chega como lista: vale o primeiro.
+  const c = Array.isArray(params.c) ? params.c[0] : params.c;
   // O link pode chegar com esta tela já aberta. A chave refaz a tela com o código novo.
-  return <GrupoFlow key={params.c ?? ''} params={params} />;
+  return <GrupoFlow key={c ?? ''} c={c} />;
 }
 
-function GrupoFlow({ params }: { params: { c?: string } }) {
-  const doLink = params.c ? codigoDoTexto(params.c) : null;
+function GrupoFlow({ c }: { c?: string }) {
+  const doLink = c ? codigoDoTexto(c) : null;
   const [codigo, setCodigo] = useState(doLink ?? '');
   const [camera, setCamera] = useState(false);
   const [aviso, setAviso] = useState<string | null>(
-    params.c && !doLink ? 'Esse link não tem um código de grupo. Confira com quem coordena o grupo.' : null,
+    c && !doLink ? 'Esse link não tem um código de grupo. Confira com quem coordena o grupo.' : null,
   );
   const [pronto, setPronto] = useState<string | null>(null);
   const [permission, requestPermission] = useCameraPermissions();
@@ -104,7 +106,8 @@ function GrupoFlow({ params }: { params: { c?: string } }) {
           />
         }>
         <AppText variant="body">
-          As visitas que você fizer vão para {pronto} sempre que houver internet. Elas continuam guardadas neste celular.
+          As visitas deste celular e as que você fizer vão para {pronto} sempre que houver internet. Elas continuam
+          guardadas neste celular.
         </AppText>
       </Screen>
     );
@@ -115,7 +118,7 @@ function GrupoFlow({ params }: { params: { c?: string } }) {
       back
       onBack={voltar}
       title="Enviar as visitas para o grupo"
-      subtitle="Quem coordena o grupo (núcleo, associação ou cooperativa) passa o código. Com ele, as visitas que você fizer vão para a coordenação.">
+      subtitle="Quem coordena o grupo (núcleo, associação ou cooperativa) passa o código. Com ele, as visitas deste celular e as que você fizer vão para a coordenação.">
       <GroupJoinForm key={codigo} inicial={codigo} onCamera={abrirCamera} onJoined={setPronto} />
       {aviso ? (
         <AppText variant="bodyStrong" color={colors.danger} accessibilityRole="alert">

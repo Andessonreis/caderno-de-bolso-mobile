@@ -5,14 +5,17 @@ import { buildArchive, readArchive } from '../archive';
 import { parseBackup } from '../backup';
 import {
   ALFABETO_GRUPO,
+  avisoAoEntrar,
   codigoDoTexto,
   codigoValido,
   faltamParaGrupo,
   formatarCodigo,
   limparCodigo,
   linkDoGrupo,
+  resumoDoGrupo,
   situacaoNoGrupo,
   visitasParaEnviar,
+  visitasQueVaoAoEntrar,
 } from '../grupo';
 import { migratePersisted } from '../migrate';
 import { type Visita, novaVisita } from '../roteiro';
@@ -103,6 +106,53 @@ describe('o que vai para o grupo', () => {
     expect(situacaoNoGrupo(grande, {})).toBe('grande_demais');
     expect(faltamParaGrupo([grande, normal], {})).toBe(1);
   });
+
+  it('visita recusada pelo servidor fica de fora até mudar', () => {
+    const recusada = visita();
+    const outra = visita();
+    const recusadas = { [recusada.id]: T0 };
+    const sel = visitasParaEnviar([recusada, outra], {}, recusadas);
+    expect(sel.enviar.map((r) => r.id)).toEqual([outra.id]);
+    expect(sel.recusadas).toEqual([recusada.id]);
+    expect(situacaoNoGrupo(recusada, {}, recusadas)).toBe('recusada');
+    expect(situacaoNoGrupo({ ...recusada, updatedAt: T1 }, {}, recusadas)).toBe('falta');
+    const grande = visita({ observacoes: '…'.repeat(11_000) });
+    expect(resumoDoGrupo([recusada, outra, grande], {}, recusadas)).toEqual({ faltam: 1, naoForam: 2 });
+  });
+
+  it('separa as visitas novas das que o grupo já tem (o limite do grupo só vale para as novas)', () => {
+    const nova = visita();
+    const mudou = visita({ updatedAt: T1 });
+    const sel = visitasParaEnviar([nova, mudou], { [mudou.id]: T0 });
+    expect([...sel.novas]).toEqual([nova.id]);
+  });
+});
+
+describe('aviso antes de entrar no grupo', () => {
+  it('conta as visitas que já estão no celular e vão para o grupo', () => {
+    const visitas = [visita(), visita(), visita({}, ''), visita({ deletedAt: T1 })];
+    expect(visitasQueVaoAoEntrar(visitas, 'ABCDE23456', { de: null, enviadas: {} })).toBe(2);
+    // Voltando ao mesmo grupo, o que ele já tem não conta.
+    const aceitas = { de: 'ABCDE23456', enviadas: { [visitas[0].id]: T0 } };
+    expect(visitasQueVaoAoEntrar(visitas, 'ABCDE23456', aceitas)).toBe(1);
+    expect(visitasQueVaoAoEntrar(visitas, 'XYZWV23456', aceitas)).toBe(2);
+  });
+
+  it('diz quantas vão, quem vê e de qual grupo as visitas saem', () => {
+    const base = { nome: 'Núcleo', codigo: 'ABCDE23456', atual: null };
+    expect(avisoAoEntrar({ ...base, existentes: 3 })).toBe(
+      'As 3 visitas que já estão neste celular e as que você fizer daqui para a frente vão para a coordenação de Núcleo. Quem coordena o grupo vai ver o que foi preenchido, inclusive o nome do produtor visitado.',
+    );
+    expect(avisoAoEntrar({ ...base, existentes: 1 })).toMatch(/^A visita que já está neste celular e as que você fizer/);
+    expect(avisoAoEntrar({ ...base, existentes: 0 })).toBe(
+      'As visitas que você fizer serão enviadas para a coordenação de Núcleo. Quem coordena o grupo vai ver o que foi preenchido, inclusive o nome do produtor visitado.',
+    );
+    const atual = { codigo: 'XYZWV23456', nome: 'Associação', ligadoEm: T0 };
+    expect(avisoAoEntrar({ ...base, existentes: 0, atual })).toMatch(
+      / As visitas deixam de ir para Associação e passam a ir para Núcleo\.$/,
+    );
+    expect(avisoAoEntrar({ ...base, existentes: 0, atual: { ...atual, codigo: 'ABCDE23456' } })).not.toMatch(/deixam/);
+  });
 });
 
 describe('grupo guardado no aparelho', () => {
@@ -110,7 +160,20 @@ describe('grupo guardado no aparelho', () => {
 
   it('versão 5 → 6: começa sem grupo, sem mexer no resto', () => {
     const v5 = { entries: [{ id: '1' }], photos: [], peerVisits: [], pendingChanges: [] };
-    expect(migratePersisted(v5, 5)).toEqual({ ...v5, grupo: null, grupoEnviadas: {} });
+    expect(migratePersisted(v5, 5)).toEqual({
+      ...v5,
+      grupo: null,
+      grupoEnviadas: {},
+      grupoEnviadasDe: null,
+      grupoRecusadas: {},
+    });
+  });
+
+  it('versão 6 → 7: o que o grupo aceitou fica marcado com o código dele', () => {
+    const grupo = { codigo: 'ABCDE23456', nome: 'Núcleo', ligadoEm: T0 };
+    const v6 = { peerVisits: [], grupo, grupoEnviadas: { v1: T0 } };
+    expect(migratePersisted(v6, 6)).toEqual({ ...v6, grupoEnviadasDe: 'ABCDE23456', grupoRecusadas: {} });
+    expect(migratePersisted({ grupo: null, grupoEnviadas: {} }, 6)).toMatchObject({ grupoEnviadasDe: null });
   });
 
   it('entrar, registrar o que o grupo aceitou e sair', () => {
@@ -130,11 +193,20 @@ describe('grupo guardado no aparelho', () => {
     useApp.getState().joinGroup('ABCDE23456', 'Núcleo Pé de Serra');
     expect(useApp.getState().grupoEnviadas).toHaveProperty(salva.id);
 
+    useApp.getState().markRejectedByGroup('ABCDE23456', [{ id: 'ruim', dados: {}, atualizado_em: T0, apagado_em: null }]);
+    expect(useApp.getState().grupoRecusadas).toEqual({ ruim: T0 });
+
     useApp.getState().leaveGroup();
     expect(useApp.getState().grupo).toBeNull();
-    expect(useApp.getState().grupoEnviadas).toEqual({});
+    expect(useApp.getState().grupoRecusadas).toEqual({});
+    // O que o grupo aceitou fica guardado, com o código dele, para quando voltar.
+    expect(useApp.getState().grupoEnviadas).toEqual({ [salva.id]: salva.updatedAt });
+    expect(useApp.getState().grupoEnviadasDe).toBe('ABCDE23456');
     // As visitas continuam no celular.
     expect(useApp.getState().peerVisits).toHaveLength(1);
+
+    useApp.getState().joinGroup('XYZWV23456', 'Outro');
+    expect(useApp.getState().grupoEnviadas).toEqual({});
   });
 
   it('o código vai na cópia de segurança e volta; não vai na cópia na internet', () => {
@@ -154,9 +226,10 @@ describe('grupo guardado no aparelho', () => {
     expect(registros.length).toBeGreaterThan(0);
     expect(registros.join('')).not.toContain('ABCDE23456');
 
+    // Importar não entra no grupo do arquivo sozinho: a tela oferece.
     useApp.getState().resetAll();
     useApp.getState().importData(r.data);
-    expect(useApp.getState().grupo).toMatchObject({ codigo: 'ABCDE23456', nome: 'Núcleo Pé de Serra' });
+    expect(useApp.getState().grupo).toBeNull();
   });
 
   it('arquivo sem o campo mantém o grupo do aparelho; grupo estragado é ignorado', () => {
@@ -173,17 +246,18 @@ describe('grupo guardado no aparelho', () => {
     const estragado = parseBackup(JSON.stringify({ ...antigo, grupo: { codigo: 'ERRADO', nome: 'x' } }));
     expect(estragado.ok && estragado.data).not.toHaveProperty('grupo');
 
-    // Arquivo de outro grupo: o que o grupo anterior aceitou não vale para ele.
+    // Arquivo de outro grupo: o celular continua no seu, com o que o grupo já aceitou.
     const outro = parseBackup(JSON.stringify({ ...antigo, grupo: { codigo: 'xyzwv-23456', nome: 'Outro', ligadoEm: T0 } }));
     if (!outro.ok) throw new Error('arquivo recusado');
+    expect(outro.data.grupo).toEqual({ codigo: 'XYZWV23456', nome: 'Outro', ligadoEm: T0 });
     useApp.getState().importData(outro.data);
-    expect(useApp.getState().grupo).toEqual({ codigo: 'XYZWV23456', nome: 'Outro', ligadoEm: T0 });
-    expect(useApp.getState().grupoEnviadas).toEqual({});
+    expect(useApp.getState().grupo?.codigo).toBe('ABCDE23456');
+    expect(useApp.getState().grupoEnviadas).toEqual({ v: T0 });
 
-    // Arquivo feito sem grupo: sai do grupo.
+    // Arquivo feito sem grupo: o celular não sai do grupo.
     const semGrupo = parseBackup(JSON.stringify({ ...antigo, grupo: null }));
     if (!semGrupo.ok) throw new Error('arquivo recusado');
     useApp.getState().importData(semGrupo.data);
-    expect(useApp.getState().grupo).toBeNull();
+    expect(useApp.getState().grupo?.codigo).toBe('ABCDE23456');
   });
 });

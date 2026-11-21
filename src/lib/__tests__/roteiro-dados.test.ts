@@ -50,7 +50,14 @@ function visitaNoLimite(trecho = 'ção\n"'): Visita {
 describe('visitas guardadas no aparelho', () => {
   it('versão 4 → 5: entra a lista de visitas vazia, sem mexer no resto', () => {
     const v4 = { entries: [{ id: '1' }], photos: [], pendingChanges: [] };
-    expect(migratePersisted(v4, 4)).toEqual({ ...v4, peerVisits: [], grupo: null, grupoEnviadas: {} });
+    expect(migratePersisted(v4, 4)).toEqual({
+      ...v4,
+      peerVisits: [],
+      grupo: null,
+      grupoEnviadas: {},
+      grupoEnviadasDe: null,
+      grupoRecusadas: {},
+    });
   });
 
   it('versão 4 → 5: a cópia na internet volta a receber desde o começo, para trazer as visitas', () => {
