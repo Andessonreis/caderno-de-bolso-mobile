@@ -32,6 +32,23 @@ describe('ids', () => {
     expect([...ids].every(isUuid)).toBe(true);
     expect(uuid(() => new Uint8Array(16))).toBe('00000000-0000-4000-8000-000000000000');
   });
+
+  it('sem crypto no motor JS, usa os bytes seguros do expo-crypto (nunca Math.random)', () => {
+    const Crypto = jest.requireActual<typeof import('expo-crypto')>('expo-crypto');
+    const seguro = jest.spyOn(Crypto, 'getRandomValues').mockImplementation((a) => a.fill(0xff));
+    const sorteio = jest.spyOn(Math, 'random');
+    const original = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
+    Object.defineProperty(globalThis, 'crypto', { value: undefined, configurable: true });
+    try {
+      expect(uuid()).toBe('ffffffff-ffff-4fff-bfff-ffffffffffff');
+      expect(seguro).toHaveBeenCalled();
+      expect(sorteio).not.toHaveBeenCalled();
+    } finally {
+      if (original) Object.defineProperty(globalThis, 'crypto', original);
+      seguro.mockRestore();
+      sorteio.mockRestore();
+    }
+  });
 });
 
 describe('repositório e fila de alterações', () => {
