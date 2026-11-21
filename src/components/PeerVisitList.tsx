@@ -4,6 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import { formatLongDate } from '@/lib/dates';
 import { type Visita, nomeDoProdutor, novaVisita, progresso } from '@/lib/roteiro';
 import { useApp, usePeerVisits } from '@/store';
+import { visitaGrandeDemais } from '@/sync/records';
 import { colors, radius, space } from '@/theme';
 
 import { AppText } from './AppText';
@@ -25,6 +26,7 @@ interface PeerVisitListProps {
 export function PeerVisitList({ onAskDelete }: PeerVisitListProps) {
   const visits = usePeerVisits();
   const savePeerVisit = useApp((s) => s.savePeerVisit);
+  const syncLigado = useApp((s) => s.sync.ligado);
 
   const start = () => {
     const v = novaVisita();
@@ -69,6 +71,11 @@ export function PeerVisitList({ onAskDelete }: PeerVisitListProps) {
               <AppText variant="label">
                 {p.feitos} de {p.total} respondidas
               </AppText>
+              {syncLigado && visitaGrandeDemais(v) ? (
+                <AppText variant="small" color={colors.clay}>
+                  Esta visita ficou grande demais para a cópia na internet. Ela continua guardada neste celular.
+                </AppText>
+              ) : null}
               <View style={styles.actions}>
                 <Button
                   label="Continuar"

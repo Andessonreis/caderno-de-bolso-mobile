@@ -6,10 +6,14 @@ import { TOUCH_MIN, colors, radius, space } from '@/theme';
 
 import { AppText } from './AppText';
 import { Button } from './Button';
-import { Field } from './Field';
 import { Icon, type IconName } from './Icon';
+import { VisitTextField } from './VisitTextField';
 
-/** Cada resposta tem ícone próprio: dá para distinguir sem depender da cor. */
+/**
+ * Cada resposta tem ícone próprio: dá para distinguir sem depender da cor. A
+ * marcada ainda ganha um sinal de certo no fim, porque o ícone de "Em parte"
+ * é o mesmo marcado ou não.
+ */
 const ICONE: Record<Resposta, { normal: IconName; marcado: IconName }> = {
   sim: { normal: 'check-circle-outline', marcado: 'check-circle' },
   parte: { normal: 'circle-half-full', marcado: 'circle-half-full' },
@@ -20,7 +24,8 @@ const ICONE: Record<Resposta, { normal: IconName; marcado: IconName }> = {
 interface VisitQuestionProps {
   item: Item;
   resposta: RespostaItem | undefined;
-  onChange: (nova: RespostaItem) => void;
+  /** Recebe a mudança sobre a resposta mais recente (a observação pode ser salva depois de um toque). */
+  onChange: (mudar: (atual: RespostaItem | undefined) => RespostaItem) => void;
 }
 
 /** Uma pergunta do roteiro: responde com um toque (Sim, Em parte, Não, Não se aplica) e anota se quiser. */
@@ -46,7 +51,7 @@ export function VisitQuestion({ item, resposta, onChange }: VisitQuestionProps) 
               accessibilityRole="radio"
               accessibilityLabel={o.rotulo}
               accessibilityState={{ selected: marcado }}
-              onPress={() => onChange({ obs, r: o.valor })}
+              onPress={() => onChange((atual) => ({ obs: atual?.obs ?? '', r: o.valor }))}
               style={({ pressed }) => [
                 styles.option,
                 marcado && styles.optionOn,
@@ -60,17 +65,22 @@ export function VisitQuestion({ item, resposta, onChange }: VisitQuestionProps) 
               <AppText variant="label" color={marcado ? colors.onLeaf : colors.ink} style={styles.optionText}>
                 {o.rotulo}
               </AppText>
+              {marcado ? (
+                <View style={styles.badge}>
+                  <Icon name="check-bold" size={16} color={colors.leaf} />
+                </View>
+              ) : null}
             </Pressable>
           );
         })}
       </View>
       {abrirObs ? (
-        <Field
+        <VisitTextField
           label="Observação"
           optional
           value={obs}
-          onChangeText={(t) => onChange({ ...resposta, obs: t })}
-          maxLength={LIMITES_VISITA.observacao}
+          onSave={(t) => onChange((atual) => ({ ...atual, obs: t }))}
+          limite={LIMITES_VISITA.observacao}
           multiline
         />
       ) : (
@@ -113,4 +123,13 @@ const styles = StyleSheet.create({
   },
   optionOn: { backgroundColor: colors.leaf },
   optionText: { flexShrink: 1 },
+  badge: {
+    marginLeft: 'auto',
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.onLeaf,
+  },
 });

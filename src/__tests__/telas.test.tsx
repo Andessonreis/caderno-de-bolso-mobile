@@ -1,6 +1,7 @@
-import { act, fireEvent, screen } from '@testing-library/react-native';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 import { renderRouter } from 'expo-router/testing-library';
 import path from 'node:path';
+import { AppState, BackHandler, Linking } from 'react-native';
 
 import { encodeFicha } from '@/lib/ficha';
 import { novaVisita } from '@/lib/roteiro';
@@ -10,6 +11,12 @@ import { useApp } from '@/store';
 jest.setTimeout(30000);
 
 const APP_DIR = path.resolve(__dirname, '../app');
+
+type DubleCamera = {
+  permissao: { granted: boolean; canAskAgain: boolean; status: string };
+  props: { onBarcodeScanned?: (r: { data: string }) => void } | null;
+};
+const { dubleCamera } = jest.requireMock('expo-camera') as { dubleCamera: DubleCamera };
 
 async function resetStore() {
   await act(() => {
@@ -182,8 +189,10 @@ describe('telas do app', () => {
     expect(useApp.getState().pendingChanges.at(-1)).toMatchObject({ entity: 'visita_par', recordId: id });
 
     await fireEvent.changeText(screen.getByLabelText('Nome do produtor visitado'), 'Maria da Silva');
-    expect(useApp.getState().peerVisits[0].produtor.nome).toBe('Maria da Silva');
+    // O texto vai para o celular depois de uma pausa curta, não a cada letra.
+    expect(useApp.getState().peerVisits[0].produtor.nome).toBe('');
     expect(await screen.findByText('Salvo neste celular')).toBeTruthy();
+    expect(useApp.getState().peerVisits[0].produtor.nome).toBe('Maria da Silva');
     expect(screen.getByText('Visita a Maria da Silva')).toBeTruthy();
 
     await fireEvent.press(screen.getByLabelText('Próxima etapa'));
@@ -251,5 +260,137 @@ describe('telas do app', () => {
     await fireEvent.press(screen.getByLabelText('Desfazer'));
     expect(useApp.getState().peerVisits[0].deletedAt).toBeUndefined();
     expect(await screen.findByText('Rosa')).toBeTruthy();
+  });
+
+  it('texto digitado é salvo ao sair do campo, ao ir para segundo plano e ao trocar de etapa', async () => {
+    // O AppState dos testes já é um dublê: só olhamos quem se inscreveu nesta tela.
+    const appState = jest.spyOn(AppState, 'addEventListener');
+    const antes = appState.mock.calls.length;
+    const v = novaVisita(new Date('2026-11-20T10:00:00'));
+    await act(() => {
+      useApp.getState().loadSample('2026-11-20');
+      useApp.getState().savePeerVisit(v);
+    });
+    await renderRouter(APP_DIR, { initialUrl: `/visita-par/${v.id}` });
+    const atual = () => useApp.getState().peerVisits.find((x) => x.id === v.id)!;
+
+    const nome = await screen.findByLabelText('Nome do produtor visitado');
+    await fireEvent.changeText(nome, 'Rosa');
+    expect(atual().produtor.nome).toBe('');
+    await fireEvent(nome, 'blur');
+    expect(atual().produtor.nome).toBe('Rosa');
+
+    await fireEvent.changeText(screen.getByLabelText('Município'), 'Irecê');
+    await act(() => {
+      for (const [, aoMudar] of appState.mock.calls.slice(antes)) aoMudar('background');
+    });
+    expect(atual().produtor.municipio).toBe('Irecê');
+
+    await fireEvent.changeText(screen.getByLabelText('Quem está visitando'), 'Ana e Joel');
+    await fireEvent.press(screen.getByLabelText('Próxima etapa'));
+    expect(await screen.findByText('Documentos')).toBeTruthy();
+    expect(atual().visitantes).toBe('Ana e Joel');
+
+    // Resposta tocada enquanto a observação espera: as duas ficam.
+    await fireEvent.press(screen.getAllByLabelText('Anotar observação')[0]);
+    await fireEvent.changeText(screen.getByLabelText('Observação'), 'Faltam duas semanas');
+    await fireEvent.press(screen.getAllByLabelText('Em parte')[0]);
+    expect(atual().respostas.doc_caderno).toEqual({ obs: '', r: 'parte' });
+    await waitFor(() => expect(atual().respostas.doc_caderno).toEqual({ obs: 'Faltam duas semanas', r: 'parte' }));
+  });
+
+  it('mostra quantas letras ainda cabem perto do limite', async () => {
+    const v = novaVisita(new Date('2026-11-20T10:00:00'));
+    await act(() => {
+      useApp.getState().loadSample('2026-11-20');
+      useApp.getState().savePeerVisit(v);
+    });
+    await renderRouter(APP_DIR, { initialUrl: `/visita-par/${v.id}` });
+    const nome = await screen.findByLabelText('Nome do produtor visitado');
+    expect(screen.queryByText(/Ainda cabe/)).toBeNull();
+    await fireEvent.changeText(nome, 'a'.repeat(70));
+    expect(screen.getByText('Ainda cabem 10 letras')).toBeTruthy();
+    await fireEvent.changeText(nome, 'a'.repeat(79));
+    expect(screen.getByText('Ainda cabe 1 letra')).toBeTruthy();
+  });
+
+  it('visita deixada vazia é apagada ao sair; com texto esperando para salvar, fica', async () => {
+    await act(() => useApp.getState().loadSample('2026-11-20'));
+    await renderRouter(APP_DIR, { initialUrl: '/visita?modo=outra' });
+    await fireEvent.press(await screen.findByLabelText('Começar uma visita'));
+    expect(await screen.findByText('Quem e quando')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Lista de visitas'));
+    expect(await screen.findByText('Nenhuma visita ainda')).toBeTruthy();
+    expect(useApp.getState().peerVisits.every((x) => x.deletedAt)).toBe(true);
+
+    await fireEvent.press(screen.getByLabelText('Começar uma visita'));
+    await fireEvent.changeText(await screen.findByLabelText('Nome do produtor visitado'), 'Joana');
+    await fireEvent.press(screen.getByLabelText('Lista de visitas'));
+    expect(await screen.findByText('Joana')).toBeTruthy();
+    const vivas = useApp.getState().peerVisits.filter((x) => !x.deletedAt);
+    expect(vivas.map((x) => x.produtor.nome)).toEqual(['Joana']);
+  });
+
+  it('câmera: voltar do celular fecha a câmera e código que não é ficha avisa uma vez', async () => {
+    const back = jest.spyOn(BackHandler, 'addEventListener');
+    const antes = back.mock.calls.length;
+    dubleCamera.permissao = { granted: true, canAskAgain: true, status: 'granted' };
+    const v = novaVisita(new Date('2026-11-20T10:00:00'));
+    await act(() => {
+      useApp.getState().loadSample('2026-11-20');
+      useApp.getState().savePeerVisit(v);
+    });
+    await renderRouter(APP_DIR, { initialUrl: `/visita-par/${v.id}` });
+    await fireEvent.press(await screen.findByLabelText('Ler o QR da ficha com a câmera'));
+    expect(await screen.findByText('Aponte para o QR da ficha do produtor')).toBeTruthy();
+
+    await act(() => dubleCamera.props?.onBarcodeScanned?.({ data: 'https://exemplo.com/outra-coisa' }));
+    await act(() => dubleCamera.props?.onBarcodeScanned?.({ data: 'https://exemplo.com/outra-coisa' }));
+    expect(screen.getAllByText('Este código não é de uma ficha do Caderno de Bolso.')).toHaveLength(1);
+
+    const voltar = back.mock.calls.slice(antes).map((c) => c[1]).at(-1)!;
+    let tratado: boolean | undefined;
+    await act(() => {
+      tratado = voltar({ type: 'hardwareBackPress', timeStamp: 0 });
+    });
+    expect(tratado).toBe(true);
+    expect(await screen.findByText('Quem e quando')).toBeTruthy();
+    expect(screen.queryByText('Aponte para o QR da ficha do produtor')).toBeNull();
+    back.mockRestore();
+    dubleCamera.permissao = { granted: false, canAskAgain: false, status: 'denied' };
+  });
+
+  it('câmera negada de vez oferece abrir as configurações', async () => {
+    // Linking dos testes já é um dublê: conferimos só a chamada feita aqui.
+    const abrir = jest.mocked(Linking.openSettings);
+    const antes = abrir.mock.calls.length;
+    dubleCamera.permissao = { granted: false, canAskAgain: false, status: 'denied' };
+    const v = novaVisita(new Date('2026-11-20T10:00:00'));
+    await act(() => {
+      useApp.getState().loadSample('2026-11-20');
+      useApp.getState().savePeerVisit(v);
+    });
+    await renderRouter(APP_DIR, { initialUrl: `/visita-par/${v.id}` });
+    await fireEvent.press(await screen.findByLabelText('Ler o QR da ficha com a câmera'));
+    expect(await screen.findByText(/precisa da permissão da câmera/)).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Abrir configurações'));
+    expect(abrir.mock.calls.length).toBe(antes + 1);
+  });
+
+  it('visita grande demais para a internet ganha um aviso na lista e no resumo', async () => {
+    const v = novaVisita(new Date('2026-11-20T10:00:00'));
+    v.produtor.nome = 'Rosa';
+    v.observacoes = '…'.repeat(11_000);
+    await act(() => {
+      useApp.getState().loadSample('2026-11-20');
+      useApp.getState().savePeerVisit(v);
+      useApp.setState((st) => ({ sync: { ...st.sync, ligado: true, perguntado: true } }));
+    });
+    const aviso = 'Esta visita ficou grande demais para a cópia na internet. Ela continua guardada neste celular.';
+    await renderRouter(APP_DIR, { initialUrl: '/visita?modo=outra' });
+    expect(await screen.findByText(aviso)).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Continuar'));
+    await fireEvent.press(await screen.findByLabelText('Resumo da visita'));
+    expect(await screen.findByText(aviso)).toBeTruthy();
   });
 });

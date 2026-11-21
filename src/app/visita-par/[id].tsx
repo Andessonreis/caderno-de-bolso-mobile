@@ -1,7 +1,7 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useRef, useState } from 'react';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Alert, AppState, BackHandler, Linking, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/AppText';
@@ -13,6 +13,7 @@ import { Icon } from '@/components/Icon';
 import { Screen } from '@/components/Screen';
 import { ProgressBar } from '@/components/StepProgress';
 import { VisitQuestion } from '@/components/VisitQuestion';
+import { type Rascunhos, RascunhosContext, VisitTextField } from '@/components/VisitTextField';
 import { capitalize } from '@/lib/catalog';
 import { addDays, today as todayISO } from '@/lib/dates';
 import { errorMessage, hapticSuccess, sharePdf } from '@/lib/device';
@@ -25,15 +26,19 @@ import {
   LIMITES_VISITA,
   OPCOES_PARECER,
   OPCOES_TIPO,
+  type Pendencia,
   type Visita,
   culturasSensiveisDe,
   itensDaEtapa,
+  limparTexto,
   nomeDoArquivo,
   novoId,
   pendencias,
-  progresso,
+  totalDePerguntas,
+  visitaVazia,
 } from '@/lib/roteiro';
 import { useApp } from '@/store';
+import { visitaGrandeDemais } from '@/sync/records';
 import { TOUCH_MIN, colors, radius, space } from '@/theme';
 
 /** Índice ETAPAS.length é a tela de resumo. */
@@ -41,21 +46,63 @@ const RESUMO = ETAPAS.length;
 
 type Atualizar = (mudar: (v: Visita) => Visita) => void;
 
+type FichaMsg = { erro: boolean; texto: string; configuracoes?: boolean };
+
+/** Salva agora os textos que esperavam a pausa na digitação. */
+function salvarRascunhos(lista: Map<string, () => void>) {
+  for (const salvar of [...lista.values()]) salvar();
+}
+
 /**
  * Roteiro de apoio à visita, preenchido na roça de outro produtor. Sete etapas
- * e o resumo; cada toque ou letra digitada é salvo no celular na mesma hora.
+ * e o resumo; cada toque é salvo no celular na mesma hora e o texto digitado,
+ * logo depois de uma pausa (e sempre antes de sair da tela).
  */
 export default function VisitaPar() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const visita = useApp((s) => s.peerVisits.find((v) => v.id === id && !v.deletedAt));
   const savePeerVisit = useApp((s) => s.savePeerVisit);
+  const syncLigado = useApp((s) => s.sync.ligado);
   const [indice, setIndice] = useState(0);
   const [salvo, setSalvo] = useState(false);
   const [camera, setCamera] = useState(false);
-  const [fichaMsg, setFichaMsg] = useState<{ erro: boolean; texto: string } | null>(null);
+  const [qrMsg, setQrMsg] = useState<string | null>(null);
+  const [fichaMsg, setFichaMsg] = useState<FichaMsg | null>(null);
   const [permission, requestPermission] = useCameraPermissions();
   const [busy, setBusy] = useState(false);
   const scanned = useRef(false);
+  const avisouQr = useRef(false);
+  const rascunhos = useRef(new Map<string, () => void>());
+  const [contexto] = useState<Rascunhos>(() => ({
+    guardar: (chave, salvarAgora) => rascunhos.current.set(chave, salvarAgora),
+    soltar: (chave) => rascunhos.current.delete(chave),
+  }));
+
+  // Ao sair da tela (botão, voltar do celular ou gesto): salva o texto que
+  // esperava e, se a visita ficou sem nada, apaga.
+  useEffect(() => {
+    const lista = rascunhos;
+    const app = AppState.addEventListener('change', (estado) => {
+      if (estado !== 'active') salvarRascunhos(lista.current);
+    });
+    return () => {
+      app.remove();
+      salvarRascunhos(lista.current);
+      const { peerVisits, deletePeerVisit } = useApp.getState();
+      const atual = peerVisits.find((v) => v.id === id && !v.deletedAt);
+      if (atual && visitaVazia(atual)) deletePeerVisit(atual.id);
+    };
+  }, [id]);
+
+  // Com a câmera aberta, o voltar do celular fecha a câmera em vez de sair da visita.
+  useEffect(() => {
+    if (!camera) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      setCamera(false);
+      return true;
+    });
+    return () => sub.remove();
+  }, [camera]);
 
   const voltarParaLista = () =>
     router.canGoBack() ? router.back() : router.replace({ pathname: '/visita', params: { modo: 'outra' } });
@@ -76,13 +123,18 @@ export default function VisitaPar() {
   };
 
   const usarFicha = (ficha: Ficha) => {
-    const culturas = (ficha.cu ?? []).map((c) => c.slice(0, LIMITES_VISITA.cultura)).slice(0, LIMITES_VISITA.culturas);
+    // A ficha passa pela mesma limpeza e pelos mesmos limites do que é digitado.
+    const culturas = (ficha.cu ?? [])
+      .map((c) => limparTexto(c, LIMITES_VISITA.cultura))
+      .filter(Boolean)
+      .slice(0, LIMITES_VISITA.culturas);
     const sensiveis = culturasSensiveisDe(culturas);
+    const municipio = limparTexto(ficha.m, LIMITES_VISITA.municipio);
     atualizar((v) => ({
       ...v,
       produtor: {
-        nome: ficha.n.slice(0, LIMITES_VISITA.nome),
-        municipio: (ficha.m ?? v.produtor.municipio).slice(0, LIMITES_VISITA.municipio),
+        nome: limparTexto(ficha.n, LIMITES_VISITA.nome),
+        municipio: municipio || v.produtor.municipio,
         culturas,
       },
       culturasSensiveis: sensiveis.length ? sensiveis : v.culturasSensiveis,
@@ -98,10 +150,14 @@ export default function VisitaPar() {
         erro: true,
         texto:
           'Para ler o QR, o app precisa da permissão da câmera. Libere nas configurações do celular ou cole o link.',
+        // Negada de vez: o celular não pergunta mais, só dá para liberar nas configurações.
+        configuracoes: !p.canAskAgain,
       });
       return;
     }
     scanned.current = false;
+    avisouQr.current = false;
+    setQrMsg(null);
     setCamera(true);
   };
 
@@ -122,6 +178,17 @@ export default function VisitaPar() {
         <AppText variant="heading" color={colors.white} center style={styles.cameraText}>
           Aponte para o QR da ficha do produtor
         </AppText>
+        {qrMsg ? (
+          <AppText
+            variant="bodyStrong"
+            color={colors.white}
+            center
+            style={styles.cameraText}
+            accessibilityRole="alert"
+            accessibilityLiveRegion="polite">
+            {qrMsg}
+          </AppText>
+        ) : null}
         <CameraView
           style={styles.camera}
           facing="back"
@@ -130,7 +197,14 @@ export default function VisitaPar() {
             if (scanned.current) return;
             const payload = fichaPayloadFrom(data);
             const ficha = payload ? decodeFicha(payload) : null;
-            if (!ficha) return;
+            if (!ficha) {
+              // O leitor chama várias vezes por segundo: avisa uma vez só.
+              if (!avisouQr.current) {
+                avisouQr.current = true;
+                setQrMsg('Este código não é de uma ficha do Caderno de Bolso.');
+              }
+              return;
+            }
             scanned.current = true;
             hapticSuccess();
             usarFicha(ficha);
@@ -144,7 +218,10 @@ export default function VisitaPar() {
     );
   }
 
-  const p = progresso(visita);
+  // Uma conta só por tela: o progresso, as etapas e o resumo usam a mesma lista.
+  const faltando = pendencias(visita);
+  const total = totalDePerguntas(visita);
+  const p = { feitos: total - faltando.length, total, fracao: total ? (total - faltando.length) / total : 0 };
   const etapa = indice < RESUMO ? ETAPAS[indice] : null;
   const irPara = (alvo: EtapaId) => setIndice(ETAPAS.findIndex((e) => e.id === alvo));
 
@@ -170,7 +247,7 @@ export default function VisitaPar() {
       <View style={styles.chips}>
         {ETAPAS.map((e, i) => {
           const atual = i === indice;
-          const completa = pendencias(visita).every((x) => x.etapa !== e.id);
+          const completa = faltando.every((x) => x.etapa !== e.id);
           return (
             <Pressable
               key={e.id}
@@ -233,105 +310,115 @@ export default function VisitaPar() {
   );
 
   return (
-    // A chave refaz a rolagem a cada etapa: a etapa nova começa do alto.
-    <Screen
-      key={indice}
-      back
-      onBack={voltarParaLista}
-      backLabel="Lista de visitas"
-      top={top}
-      title={etapa ? etapa.titulo : 'Resumo'}
-      subtitle={etapa ? etapa.resumo : 'O que falta responder e a folha para assinar.'}
-      footer={footer}>
-      {etapa?.id === 'identificacao' ? (
-        <Identificacao
-          visita={visita}
-          atualizar={atualizar}
-          onCamera={abrirCamera}
-          onFicha={(texto) => {
-            const payload = fichaPayloadFrom(texto);
-            const ficha = payload ? decodeFicha(payload) : null;
-            if (ficha) usarFicha(ficha);
-            else
-              setFichaMsg({
-                erro: true,
-                texto: texto.trim()
-                  ? 'Não conseguimos ler esta ficha. Confira se o link está completo.'
-                  : 'Cole o link da ficha que aparece ao ler o QR do produtor.',
-              });
-          }}
-          fichaMsg={fichaMsg}
-        />
-      ) : null}
+    <RascunhosContext value={contexto}>
+      {/* A chave refaz a rolagem a cada etapa: a etapa nova começa do alto. */}
+      <Screen
+        key={indice}
+        back
+        onBack={voltarParaLista}
+        backLabel="Lista de visitas"
+        top={top}
+        title={etapa ? etapa.titulo : 'Resumo'}
+        subtitle={etapa ? etapa.resumo : 'O que falta responder e a folha para assinar.'}
+        footer={footer}>
+        {etapa?.id === 'identificacao' ? (
+          <Identificacao
+            visita={visita}
+            atualizar={atualizar}
+            onCamera={abrirCamera}
+            onFicha={(texto) => {
+              const payload = fichaPayloadFrom(texto);
+              const ficha = payload ? decodeFicha(payload) : null;
+              if (ficha) usarFicha(ficha);
+              else
+                setFichaMsg({
+                  erro: true,
+                  texto: texto.trim()
+                    ? 'Não conseguimos ler esta ficha. Confira se o link está completo.'
+                    : 'Cole o link da ficha que aparece ao ler o QR do produtor.',
+                });
+            }}
+            fichaMsg={fichaMsg}
+          />
+        ) : null}
 
-      {etapa?.id === 'sementes' ? (
-        <View style={styles.group}>
-          <AppText variant="bodyStrong">Tem algodão, feijão, milho ou soja plantado?</AppText>
-          <AppText variant="small" color={colors.inkMuted}>
-            Marque as que tiver. Para essas culturas o roteiro pede a comprovação de origem.
-          </AppText>
-          {CULTURAS_SENSIVEIS.map((cultura) => (
+        {etapa?.id === 'sementes' ? (
+          <View style={styles.group}>
+            <AppText variant="bodyStrong">Tem algodão, feijão, milho ou soja plantado?</AppText>
+            <AppText variant="small" color={colors.inkMuted}>
+              Marque as que tiver. Para essas culturas o roteiro pede a comprovação de origem.
+            </AppText>
+            {CULTURAS_SENSIVEIS.map((cultura) => (
+              <ChoiceTile
+                key={cultura}
+                role="checkbox"
+                label={capitalize(cultura)}
+                selected={visita.culturasSensiveis.includes(cultura)}
+                onPress={() =>
+                  atualizar((v) => ({
+                    ...v,
+                    culturasSensiveis: v.culturasSensiveis.includes(cultura)
+                      ? v.culturasSensiveis.filter((c) => c !== cultura)
+                      : CULTURAS_SENSIVEIS.filter((c) => c === cultura || v.culturasSensiveis.includes(c)),
+                  }))
+                }
+              />
+            ))}
+          </View>
+        ) : null}
+
+        {etapa?.id === 'colheita' ? (
+          <View style={styles.group}>
+            <AppText variant="bodyStrong">O armazém e o transporte são:</AppText>
             <ChoiceTile
-              key={cultura}
-              role="checkbox"
-              label={capitalize(cultura)}
-              selected={visita.culturasSensiveis.includes(cultura)}
-              onPress={() =>
-                atualizar((v) => ({
-                  ...v,
-                  culturasSensiveis: v.culturasSensiveis.includes(cultura)
-                    ? v.culturasSensiveis.filter((c) => c !== cultura)
-                    : CULTURAS_SENSIVEIS.filter((c) => c === cultura || v.culturasSensiveis.includes(c)),
-                }))
-              }
+              label="Só para orgânico"
+              selected={visita.usoArmazenamento === 'exclusivo'}
+              onPress={() => atualizar((v) => ({ ...v, usoArmazenamento: 'exclusivo' }))}
             />
-          ))}
-        </View>
-      ) : null}
+            <ChoiceTile
+              label="Compartilhados com convencional"
+              selected={visita.usoArmazenamento === 'compartilhado'}
+              onPress={() => atualizar((v) => ({ ...v, usoArmazenamento: 'compartilhado' }))}
+            />
+            {visita.usoArmazenamento === 'compartilhado' ? (
+              <VisitTextField
+                label="Como a separação é feita e registrada?"
+                help="Por exemplo: sacaria marcada, lugar separado no depósito, anotação no caderno."
+                value={visita.separacao}
+                onSave={(t) => atualizar((v) => ({ ...v, separacao: t }))}
+                limite={LIMITES_VISITA.textoLongo}
+                multiline
+              />
+            ) : null}
+          </View>
+        ) : null}
 
-      {etapa?.id === 'colheita' ? (
-        <View style={styles.group}>
-          <AppText variant="bodyStrong">O armazém e o transporte são:</AppText>
-          <ChoiceTile
-            label="Só para orgânico"
-            selected={visita.usoArmazenamento === 'exclusivo'}
-            onPress={() => atualizar((v) => ({ ...v, usoArmazenamento: 'exclusivo' }))}
+        {etapa
+          ? itensDaEtapa(visita, etapa.id).map((item) => (
+              <VisitQuestion
+                key={item.id}
+                item={item}
+                resposta={visita.respostas[item.id]}
+                onChange={(mudar) =>
+                  atualizar((v) => ({ ...v, respostas: { ...v.respostas, [item.id]: mudar(v.respostas[item.id]) } }))
+                }
+              />
+            ))
+          : null}
+
+        {etapa?.id === 'fechamento' ? <Fechamento visita={visita} atualizar={atualizar} /> : null}
+
+        {indice === RESUMO ? (
+          <Resumo
+            lista={faltando}
+            grandeDemais={syncLigado && visitaGrandeDemais(visita)}
+            irPara={irPara}
+            onPdf={gerarPdf}
+            busy={busy}
           />
-          <ChoiceTile
-            label="Compartilhados com convencional"
-            selected={visita.usoArmazenamento === 'compartilhado'}
-            onPress={() => atualizar((v) => ({ ...v, usoArmazenamento: 'compartilhado' }))}
-          />
-          {visita.usoArmazenamento === 'compartilhado' ? (
-            <Field
-              label="Como a separação é feita e registrada?"
-              help="Por exemplo: sacaria marcada, lugar separado no depósito, anotação no caderno."
-              value={visita.separacao}
-              onChangeText={(t) => atualizar((v) => ({ ...v, separacao: t }))}
-              maxLength={LIMITES_VISITA.textoLongo}
-              multiline
-            />
-          ) : null}
-        </View>
-      ) : null}
-
-      {etapa
-        ? itensDaEtapa(visita, etapa.id).map((item) => (
-            <VisitQuestion
-              key={item.id}
-              item={item}
-              resposta={visita.respostas[item.id]}
-              onChange={(r) => atualizar((v) => ({ ...v, respostas: { ...v.respostas, [item.id]: r } }))}
-            />
-          ))
-        : null}
-
-      {etapa?.id === 'fechamento' ? <Fechamento visita={visita} atualizar={atualizar} /> : null}
-
-      {indice === RESUMO ? (
-        <Resumo visita={visita} irPara={irPara} onPdf={gerarPdf} busy={busy} />
-      ) : null}
-    </Screen>
+        ) : null}
+      </Screen>
+    </RascunhosContext>
   );
 }
 
@@ -346,7 +433,7 @@ function Identificacao({
   atualizar: Atualizar;
   onCamera: () => void;
   onFicha: (texto: string) => void;
-  fichaMsg: { erro: boolean; texto: string } | null;
+  fichaMsg: FichaMsg | null;
 }) {
   const [link, setLink] = useState('');
   const nomeRef = useRef<FieldInput>(null);
@@ -382,25 +469,33 @@ function Identificacao({
             {fichaMsg.texto}
           </AppText>
         ) : null}
+        {fichaMsg?.configuracoes ? (
+          <Button
+            label="Abrir configurações"
+            variant="secondary"
+            icon="cog-outline"
+            onPress={() => Linking.openSettings()}
+          />
+        ) : null}
       </View>
 
-      <Field
+      <VisitTextField
         label="Nome do produtor visitado"
         inputRef={nomeRef}
         next={municipioRef}
         value={visita.produtor.nome}
-        onChangeText={(t) => atualizar((v) => ({ ...v, produtor: { ...v.produtor, nome: t } }))}
-        maxLength={LIMITES_VISITA.nome}
+        onSave={(t) => atualizar((v) => ({ ...v, produtor: { ...v.produtor, nome: t } }))}
+        limite={LIMITES_VISITA.nome}
         autoCapitalize="words"
       />
-      <Field
+      <VisitTextField
         label="Município"
         optional
         inputRef={municipioRef}
         next={visitantesRef}
         value={visita.produtor.municipio}
-        onChangeText={(t) => atualizar((v) => ({ ...v, produtor: { ...v.produtor, municipio: t } }))}
-        maxLength={LIMITES_VISITA.municipio}
+        onSave={(t) => atualizar((v) => ({ ...v, produtor: { ...v.produtor, municipio: t } }))}
+        limite={LIMITES_VISITA.municipio}
         autoCapitalize="words"
       />
       {visita.produtor.culturas.length ? (
@@ -408,14 +503,14 @@ function Identificacao({
           Culturas na ficha: {visita.produtor.culturas.join(', ')}.
         </AppText>
       ) : null}
-      <Field
+      <VisitTextField
         label="Quem está visitando"
         help="Os nomes, separados por vírgula."
         optional
         inputRef={visitantesRef}
         value={visita.visitantes}
-        onChangeText={(t) => atualizar((v) => ({ ...v, visitantes: t }))}
-        maxLength={LIMITES_VISITA.visitantes}
+        onSave={(t) => atualizar((v) => ({ ...v, visitantes: t }))}
+        limite={LIMITES_VISITA.visitantes}
         autoCapitalize="words"
       />
 
@@ -473,11 +568,11 @@ function Fechamento({ visita, atualizar }: { visita: Visita; atualizar: Atualiza
         {visita.naoConformidades.length === 0 ? <AppText variant="body">Nenhuma anotada.</AppText> : null}
         {visita.naoConformidades.map((nc, i) => (
           <View key={nc.id} style={styles.nc}>
-            <Field
+            <VisitTextField
               label={`O que precisa corrigir (${i + 1})`}
               value={nc.descricao}
-              onChangeText={(t) => mudarNc(nc.id, 'descricao', t)}
-              maxLength={LIMITES_VISITA.naoConformidade}
+              onSave={(t) => mudarNc(nc.id, 'descricao', t)}
+              limite={LIMITES_VISITA.naoConformidade}
               multiline
             />
             <AppText variant="label">Prazo para corrigir</AppText>
@@ -526,21 +621,21 @@ function Fechamento({ visita, atualizar }: { visita: Visita; atualizar: Atualiza
         ) : null}
       </View>
 
-      <Field
+      <VisitTextField
         label="Pontos fortes"
         help="O que a família está fazendo bem e pode servir de exemplo."
         optional
         value={visita.pontosFortes}
-        onChangeText={(t) => atualizar((v) => ({ ...v, pontosFortes: t }))}
-        maxLength={LIMITES_VISITA.textoLongo}
+        onSave={(t) => atualizar((v) => ({ ...v, pontosFortes: t }))}
+        limite={LIMITES_VISITA.textoLongo}
         multiline
       />
-      <Field
+      <VisitTextField
         label="Observações"
         optional
         value={visita.observacoes}
-        onChangeText={(t) => atualizar((v) => ({ ...v, observacoes: t }))}
-        maxLength={LIMITES_VISITA.textoLongo}
+        onSave={(t) => atualizar((v) => ({ ...v, observacoes: t }))}
+        limite={LIMITES_VISITA.textoLongo}
         multiline
       />
 
@@ -561,17 +656,18 @@ function Fechamento({ visita, atualizar }: { visita: Visita; atualizar: Atualiza
 }
 
 function Resumo({
-  visita,
+  lista,
+  grandeDemais,
   irPara,
   onPdf,
   busy,
 }: {
-  visita: Visita;
+  lista: Pendencia[];
+  grandeDemais: boolean;
   irPara: (etapa: EtapaId) => void;
   onPdf: () => void;
   busy: boolean;
 }) {
-  const lista = pendencias(visita);
   const porEtapa = ETAPAS.map((e) => ({ etapa: e, itens: lista.filter((x) => x.etapa === e.id) })).filter(
     (g) => g.itens.length > 0,
   );
@@ -620,6 +716,15 @@ function Resumo({
           ))}
         </View>
       )}
+
+      {grandeDemais ? (
+        <View style={[styles.box, styles.boxMissing]}>
+          <Icon name="cloud-off-outline" size={26} color={colors.clay} />
+          <AppText variant="body" style={styles.flex}>
+            Esta visita ficou grande demais para a cópia na internet. Ela continua guardada neste celular.
+          </AppText>
+        </View>
+      ) : null}
 
       <Button label="Gerar PDF da visita" icon="file-pdf-box" size="xl" busy={busy} onPress={onPdf} />
       <AppText variant="small" color={colors.inkMuted}>

@@ -119,7 +119,8 @@ export function recordTooBig(r: OutgoingRecord): boolean {
 /** A visita não cabe num registro da cópia na internet e fica só no celular. */
 export function visitaGrandeDemais(v: Visita): boolean {
   if (v.deletedAt) return false;
-  return recordTooBig({ tipo: 'visita_par', id: v.id, dados: visitaDados(v), atualizado_em: v.updatedAt, apagado_em: null });
+  const dados = visitaDados(v);
+  return recordTooBig({ tipo: 'visita_par', id: v.id, dados, atualizado_em: v.updatedAt, apagado_em: null });
 }
 
 export interface OutgoingBatch {
