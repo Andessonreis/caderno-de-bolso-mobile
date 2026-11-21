@@ -304,7 +304,7 @@ Você chega aqui pela aba Visita, tocando em **Visitar outra roça**, ou pelo bo
 
 **O que aparece:** as duas escolhas no alto, o título "Visitar outra roça" e um quadro que explica que é para quando você for visitar a roça de outro produtor, que as perguntas se respondem com um toque e que tudo fica salvo no celular na hora, sem internet. O quadro também lembra que é um **roteiro de apoio** e que não substitui o roteiro nem os documentos oficiais do seu grupo (OPAC). Abaixo, o botão grande **Começar uma visita**, o cartão **Grupo** (veja [Enviar as visitas para o grupo](#enviar-as-visitas-para-o-grupo)) e a parte **Visitas guardadas neste celular**.
 
-Sem visitas, aparece "Nenhuma visita ainda", explicando que dá para começar quando chegar na roça e continuar depois. Com visitas, cada uma vem num cartão com o nome do produtor (ou "Produtor sem nome"), a data por extenso, o município, uma barra de progresso e "N de M respondidas". Quando o celular está num grupo, o cartão diz também **Enviada ao grupo** ou **Falta enviar ao grupo**, com ícone. A mais recente fica em cima.
+Sem visitas, aparece "Nenhuma visita ainda", explicando que dá para começar quando chegar na roça e continuar depois. Com visitas, cada uma vem num cartão com o nome do produtor (ou "Produtor sem nome"), a data por extenso, o município, uma barra de progresso e "N de M respondidas". Quando o celular está num grupo, o cartão diz também **Enviada ao grupo**, **Falta enviar ao grupo** ou que a visita não pôde ir para o grupo, com ícone. A mais recente fica em cima.
 
 **Ações:**
 
@@ -375,23 +375,27 @@ Quando o celular está num grupo, o resumo diz se a visita já foi enviada ao gr
 
 ## Enviar as visitas para o grupo
 
-Só no app do celular. Serve para o grupo (núcleo, associação ou cooperativa) juntar num lugar só as visitas feitas por todos os produtores. Quem coordena cria o grupo no site, na página `/grupo`, e passa o código aos produtores. O código tem 10 letras e números e aparece como `XXXXX-XXXXX`. Quem tem o código só envia: o app nunca mostra as visitas dos outros produtores. Quem lê as visitas é a coordenação, no site.
+Só no app do celular. Serve para o grupo (núcleo, associação ou cooperativa) juntar num lugar só as visitas feitas por todos os produtores. Quem coordena cria o grupo no site, na página `/grupo`, e passa o código aos produtores. O código tem 10 letras e números e aparece como `XXXXX-XXXXX`. Quem tem o código só envia: o app nunca mostra as visitas dos outros produtores. Quem lê as visitas é a coordenação, no site. Qualquer pessoa com o código consegue enviar visitas para o grupo, por isso a coordenação passa o código só para quem é do grupo.
 
 **Sem grupo:** o cartão **Grupo**, na lista de visitas, mostra "Enviar as visitas para o grupo", o campo **Código do grupo** e os botões **Entrar no grupo** e **Ler o código com a câmera**.
 
-1. **Digitar o código:** o campo põe o código em maiúsculas e com o traço enquanto se digita. Colar o link inteiro também funciona. Código com formato errado gera "O código tem 10 letras e números, como ABCDE-23456".
+1. **Digitar o código:** o campo põe o código em maiúsculas e com o traço enquanto se digita. Colar o link inteiro também funciona. Código com formato errado, ou um link colado que não é de grupo, gera "O código tem 10 letras e números, como ABCDE-23456". Tocar de novo em **Entrar no grupo** enquanto ele confere não confere duas vezes.
 2. **Entrar no grupo:** confere o código na internet. Sem internet, a tela explica que é preciso sinal para entrar e que as visitas continuam no celular. Código que não é de nenhum grupo pede para conferir com quem coordena.
-3. **Confirmar:** aparece "Grupo: nome do grupo" e o aviso "As visitas que você fizer serão enviadas para a coordenação de nome do grupo. Quem coordena o grupo vai ver o que foi preenchido, inclusive o nome do produtor visitado.", com **Sim** e **Não**. Só depois do **Sim** o celular entra no grupo.
+3. **Confirmar:** aparece "Grupo: nome do grupo" e um aviso que diz quantas visitas já guardadas no celular vão junto. Com visitas, o aviso é "As N visitas que já estão neste celular e as que você fizer daqui para a frente vão para a coordenação de nome do grupo. Quem coordena o grupo vai ver o que foi preenchido, inclusive o nome do produtor visitado."; sem nenhuma, "As visitas que você fizer serão enviadas para a coordenação de nome do grupo.", com a mesma frase sobre quem coordena. Se o celular já está em outro grupo, o aviso termina com "As visitas deixam de ir para grupo atual e passam a ir para novo grupo.". Vêm os botões **Sim** e **Não**, e só depois do **Sim** o celular entra no grupo.
 
-**Ler o código com a câmera** abre a tela "Enviar as visitas para o grupo", que lê o QR com o link `cadernodebolso://grupo?c=XXXXX-XXXXX` ou só o código. Abrir esse link no celular leva à mesma tela, com o código já preenchido. Depois do **Sim**, a tela mostra "Pronto!" e **Ver as visitas**.
+**Ler o código com a câmera** abre a tela "Enviar as visitas para o grupo", que lê o QR com o link `cadernodebolso://grupo?c=XXXXX-XXXXX` ou só o código. Abrir esse link no celular leva à mesma tela, com o código já preenchido (se o link trouxer o código mais de uma vez, vale o primeiro). Depois do **Sim**, a tela mostra "Pronto!" e **Ver as visitas**.
 
-**No grupo:** o cartão mostra "Grupo: nome do grupo" e uma linha com o estado do envio: "Tudo enviado ao grupo", "Faltam N para enviar", "Enviando ao grupo…" ou "Sem internet: envio depois". **Sair do grupo** pergunta antes: as visitas deixam de ir para o grupo, o que já foi enviado continua com a coordenação e as visitas continuam no celular.
+**No grupo:** o cartão mostra "Grupo: nome do grupo" e uma linha com o estado do envio: "Tudo enviado ao grupo", "Faltam N para enviar", "Enviando ao grupo…", "Sem internet: envio depois", "N visitas não puderam ir para o grupo" ou "O grupo está cheio. Avise quem coordena o grupo.". "Tudo enviado ao grupo" só aparece quando não falta nada, nenhuma visita ficou de fora e o envio está em dia. **Sair do grupo** pergunta antes: as visitas deixam de ir para o grupo, o que já foi enviado continua com a coordenação e as visitas continuam no celular. Voltar depois para o mesmo grupo não reenvia o que ele já tem e leva as mudanças e exclusões feitas fora dele.
 
-**O que vai para o grupo:** cada visita que tem o nome do produtor visitado, sempre que ela muda. Uma visita começada e deixada sem nome não vai. Apagar uma visita que já tinha ido avisa o grupo, sem levar os dados. Visita grande demais para o envio fica de fora e o cartão dela avisa. Com os dados de exemplo, nada vai para o grupo.
+**O que vai para o grupo:** cada visita que tem o nome do produtor visitado, sempre que ela muda. Uma visita começada e deixada sem nome não vai. Apagar uma visita que já tinha ido avisa o grupo, sem levar os dados. Com os dados de exemplo, nada vai para o grupo.
 
-O envio é automático e independe da cópia na internet: funciona mesmo com ela desligada, porque entrar no grupo já é o aceite. Ele acontece ao abrir o app, quando a internet volta, quando o app volta para a frente e alguns segundos depois de salvar uma visita. Sem internet, espera e tenta depois. Se o grupo for apagado ou o código deixar de valer, o envio para, o cartão explica e pede o código de novo. Nada é apagado do celular.
+**Visita que não pôde ir:** visita grande demais para o envio fica de fora, e o cartão dela e o resumo dizem "Esta visita não pôde ir para o grupo: ficou grande demais.". Se o servidor do grupo recusar uma visita, as outras do mesmo envio vão uma por uma e só a recusada fica de fora, com "Esta visita não pôde ir para o grupo." no cartão e no resumo. Ela não é reenviada sozinha: vai de novo quando for mudada. Em todos os casos a visita continua guardada no celular.
 
-O código do grupo vai no arquivo da cópia de segurança, junto com os dados. Ele não vai na cópia na internet.
+**Grupo cheio:** quando o grupo chega ao limite de visitas, o cartão diz "O grupo está cheio. Avise quem coordena o grupo." e mostra **Tentar de novo**. As visitas novas esperam até alguém tocar em **Tentar de novo** ou o app ser aberto de novo; as correções e exclusões de visitas que o grupo já tem continuam indo sozinhas.
+
+O envio é automático e independe da cópia na internet: funciona mesmo com ela desligada, porque entrar no grupo já é o aceite. Ele acontece ao abrir o app, quando a internet volta, quando o app volta para a frente e alguns segundos depois de salvar uma visita. Sem internet, espera e tenta depois. Um envio que fica 30 segundos sem resposta é tratado como falta de internet e tenta depois. Se o grupo for apagado ou o código deixar de valer, o envio para, o cartão explica e pede o código de novo. Nada é apagado do celular.
+
+O código do grupo vai no arquivo da cópia de segurança, junto com os dados, então quem tiver o arquivo tem também o código. Ele não vai na cópia na internet. Importar um arquivo não muda o grupo do celular (veja [Cópia de segurança](#cópia-de-segurança)).
 
 ## Mais
 
@@ -450,7 +454,7 @@ Você chega aqui por Mais ou pela Visita, no item "Cópia de segurança". A tela
 - a **última cópia** ("Última cópia: hoje") ou "Ainda não tem cópia";
 - **Fotos do caderno de papel:** **Fotografar página** ou **Da galeria**, com as fotos agrupadas por dia. Tocar numa foto abre em tela cheia, com legenda, **Salvar legenda**, **Apagar foto** (com confirmação) e **Fechar**. Sem fotos, a tela explica como fotografar as páginas;
 - **Exportar meus dados**, que gera um único arquivo `.zip` com dados, anotações, visitas a outras roças, fotos e recados de voz e abre o compartilhar;
-- **Importar arquivo**, que pede confirmação (os dados do app são trocados pelos do arquivo) e restaura tudo, inclusive as fotos e os recados. Um arquivo que não é do app ou que está com problema gera uma mensagem, sem travar. Arquivos `.json` exportados por versões anteriores também são aceitos.
+- **Importar arquivo**, que pede confirmação (os dados do app são trocados pelos do arquivo; o grupo para onde vão as visitas não muda) e restaura tudo, inclusive as fotos e os recados. Se o arquivo veio de um celular que enviava as visitas para outro grupo, depois de importar aparece "Entrar em nome do grupo?", dizendo para qual grupo o celular continua enviando; **Sim, ver o grupo** abre a tela do grupo com o código do arquivo, onde a entrada pede a confirmação de sempre, e **Não, deixar como está** fecha. Um arquivo que não é do app ou que está com problema gera uma mensagem, sem travar. Arquivos `.json` exportados por versões anteriores também são aceitos.
 
 Funciona sem internet. O arquivo pode ser guardado no WhatsApp, no e-mail ou num pen drive.
 
